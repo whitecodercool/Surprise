@@ -6,6 +6,7 @@ import { is } from '@electron-toolkit/utils'
 import { TabManager } from './tabManager'
 import { WindowManager } from './windowManager'
 import { GhostStackOrchestrator } from '../ghoststack/core/GhostStackOrchestrator'
+import { initLogger, closeLogger, getLogFilePath } from '../ghoststack/core/Logger'
 
 // ─── GhostStack Chromium Flags ───
 // Encrypt DNS queries
@@ -200,6 +201,13 @@ function registerIpcHandlers(): void {
   // Performance
   ipcMain.handle('app:get-startup-metrics', () => startupTimeMs)
 
+  // Logs
+  ipcMain.handle('app:get-log-path', () => getLogFilePath())
+  ipcMain.on('app:open-logs', () => {
+    const { shell } = require('electron')
+    shell.openPath(getLogFilePath().replace(/[^/\\]+$/, ''))
+  })
+
   // GhostStack IPC handlers are registered inside the orchestrator's initialize() method
 }
 
@@ -216,6 +224,10 @@ function startMemoryMonitor(): void {
 }
 
 app.whenReady().then(async () => {
+  // Initialize persistent logging FIRST — all console.log calls are now saved to disk
+  initLogger()
+  console.log(`[Flux] Log file: ${getLogFilePath()}`)
+
   // Initialize GhostProtocol for DPI evasion (starts local relay server)
   await initializeGhostProtocol()
 
@@ -243,6 +255,7 @@ app.on('window-all-closed', () => {
     swarmWorkerWindow.destroy()
   }
   if (process.platform !== 'darwin') {
+    closeLogger()
     app.quit()
   }
 })
