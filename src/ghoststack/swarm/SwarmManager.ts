@@ -23,9 +23,9 @@ export class SwarmManager extends EventEmitter {
   private role: SwarmRole = 'none'
   private pendingRequests = new Map<string, PendingRequest>()
   
-  // Buffers for accumulating binary chunks if they are split (WebRTC data channel limit is usually 16KB-64KB, but our worker attempts to send it in one go. For large files we might need chunking, but for simple HTML pages it fits)
-  // For production, a robust stream chunker is needed.
+  // Buffers for accumulating binary chunks
   private responseMetadata = new Map<string, any>()
+  private responseChunks = new Map<string, Buffer[]>()
 
   constructor() {
     super()
@@ -100,18 +100,26 @@ export class SwarmManager extends EventEmitter {
 
     ipcMain.on('swarm:response', (_event, payload) => {
       const { reqId, data } = payload
+      const chunks = this.responseChunks.get(reqId) || []
+      chunks.push(Buffer.from(data))
+      this.responseChunks.set(reqId, chunks)
+    })
+
+    ipcMain.on('swarm:eof', (_event, reqId) => {
       const meta = this.responseMetadata.get(reqId)
       const pending = this.pendingRequests.get(reqId)
+      const chunks = this.responseChunks.get(reqId) || []
       
       if (meta && pending) {
         clearTimeout(pending.timer)
         pending.resolve({
           status: meta.status,
           headers: meta.headers,
-          data: Buffer.from(data)
+          data: Buffer.concat(chunks)
         })
         this.pendingRequests.delete(reqId)
         this.responseMetadata.delete(reqId)
+        this.responseChunks.delete(reqId)
       }
     })
 
@@ -123,6 +131,7 @@ export class SwarmManager extends EventEmitter {
         pending.reject(new Error(error))
         this.pendingRequests.delete(reqId)
         this.responseMetadata.delete(reqId)
+        this.responseChunks.delete(reqId)
       }
     })
   }
@@ -158,8 +167,9 @@ export class SwarmManager extends EventEmitter {
       const timer = setTimeout(() => {
         this.pendingRequests.delete(reqId)
         this.responseMetadata.delete(reqId)
+        this.responseChunks.delete(reqId)
         reject(new Error('Swarm request timeout'))
-      }, 15000)
+      }, 30000)
 
       this.pendingRequests.set(reqId, { resolve, reject, timer })
       this.workerContents!.send('swarm:request', reqData)

@@ -21,49 +21,89 @@ async function initRelay() {
   isRelay = true
   console.log('[GhostSwarm Worker] Starting as Relay')
   
-  // Register with signaling server
-  try {
-    await fetch(`${SIGNALING_URL}/register`, {
-      method: 'POST',
-      body: JSON.stringify({ id: localId })
-    })
-    
-    // Start polling for offers
-    pollSignaling()
-  } catch (e) {
-    console.error('Failed to register relay:', e)
+  // Register with signaling server (and keep re-registering before KV TTL expires)
+  async function registerRelay() {
+    try {
+      const res = await fetch(`${SIGNALING_URL}/register`, {
+        method: 'POST',
+        body: JSON.stringify({ id: localId })
+      })
+      const data = await res.json()
+      console.log(`[GhostSwarm Relay] Registered. Active relays: ${data.activeRelays}`)
+    } catch (e) {
+      console.error('[GhostSwarm Relay] Failed to register:', e)
+    }
   }
+
+  await registerRelay()
+  // Re-register every 60s (KV TTL is 120s, so we re-register well before expiry)
+  setInterval(registerRelay, 60000)
+  
+  // Start polling for offers from clients
+  pollSignaling()
 }
 
 async function initClient() {
   isRelay = false
   console.log('[GhostSwarm Worker] Starting as Client')
   
-  try {
-    peerConnection = new RTCPeerConnection({ iceServers: ICE_SERVERS })
-    setupPeerConnection()
-    
-    dataChannel = peerConnection.createDataChannel('ghost-proxy')
-    setupDataChannel()
-    
-    const offer = await peerConnection.createOffer()
-    await peerConnection.setLocalDescription(offer)
-    
-    const res = await fetch(`${SIGNALING_URL}/offer`, {
-      method: 'POST',
-      body: JSON.stringify({ id: localId, sdp: offer.sdp })
-    })
-    
-    const data = await res.json()
-    if (data.relayId) {
-      connectedPeerId = data.relayId
-      pollSignaling()
-    } else {
-      console.error('No relays available')
-      ipcRenderer.send('swarm:status', { status: 'failed', reason: 'No relays available' })
+  // Retry finding relays with exponential backoff
+  let retryCount = 0
+  const maxRetries = 10
+  
+  async function tryConnect(): Promise<boolean> {
+    try {
+      // Create fresh peer connection each attempt
+      if (peerConnection) {
+        peerConnection.close()
+      }
+      peerConnection = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+      setupPeerConnection()
+      
+      dataChannel = peerConnection.createDataChannel('ghost-proxy')
+      setupDataChannel()
+      
+      const offer = await peerConnection.createOffer()
+      await peerConnection.setLocalDescription(offer)
+      
+      console.log('[GhostSwarm Client] Asking signaling server for relays...')
+      const res = await fetch(`${SIGNALING_URL}/offer`, {
+        method: 'POST',
+        body: JSON.stringify({ id: localId, sdp: offer.sdp })
+      })
+      
+      const data = await res.json()
+      if (data.relayId) {
+        connectedPeerId = data.relayId
+        console.log(`[GhostSwarm Client] Found relay: ${data.relayId}`)
+        pollSignaling()
+        return true
+      } else {
+        console.warn(`[GhostSwarm Client] No relays available (attempt ${retryCount + 1}/${maxRetries})`)
+        return false
+      }
+    } catch (e) {
+      console.error('[GhostSwarm Client] Connection error:', e)
+      return false
     }
-  } catch (e) {
-    console.error('Failed to init client:', e)
+  }
+
+  const connected = await tryConnect()
+  if (!connected) {
+    // Retry every 10 seconds
+    const retryInterval = setInterval(async () => {
+      retryCount++
+      if (retryCount >= maxRetries) {
+        console.error('[GhostSwarm Client] Max retries reached. Giving up.')
+        ipcRenderer.send('swarm:status', { status: 'failed', reason: 'No relays found after retries' })
+        clearInterval(retryInterval)
+        return
+      }
+      const ok = await tryConnect()
+      if (ok) {
+        clearInterval(retryInterval)
+      }
+    }, 10000)
   }
 }
 
@@ -96,6 +136,8 @@ function setupPeerConnection() {
 
 function setupDataChannel() {
   if (!dataChannel) return
+
+  dataChannel.binaryType = 'arraybuffer'
 
   dataChannel.onopen = () => console.log('[GhostSwarm] Data channel open')
   dataChannel.onclose = () => console.log('[GhostSwarm] Data channel closed')
@@ -131,13 +173,21 @@ function setupDataChannel() {
               headers: Object.fromEntries(res.headers.entries())
             }))
             
-            // Send binary data (reqId padded to 36 bytes + data)
+            // Chunking to respect WebRTC data channel limits (64KB chunks)
+            const CHUNK_SIZE = 65535 - 36
             const reqIdBuf = new TextEncoder().encode(msg.reqId.padEnd(36, ' '))
-            const combined = new Uint8Array(reqIdBuf.length + buf.byteLength)
-            combined.set(reqIdBuf, 0)
-            combined.set(new Uint8Array(buf), reqIdBuf.length)
+            const uintBuf = new Uint8Array(buf)
             
-            dataChannel?.send(combined)
+            for (let i = 0; i < uintBuf.length; i += CHUNK_SIZE) {
+              const chunk = uintBuf.slice(i, i + CHUNK_SIZE)
+              const combined = new Uint8Array(reqIdBuf.length + chunk.length)
+              combined.set(reqIdBuf, 0)
+              combined.set(chunk, reqIdBuf.length)
+              dataChannel?.send(combined)
+            }
+            
+            // Send EOF
+            dataChannel?.send(JSON.stringify({ type: 'eof', reqId: msg.reqId }))
             
           } catch (e: any) {
             dataChannel?.send(JSON.stringify({ type: 'error', reqId: msg.reqId, error: e.message }))
@@ -146,6 +196,8 @@ function setupDataChannel() {
           ipcRenderer.send('swarm:metadata', msg)
         } else if (msg.type === 'error' && !isRelay) {
           ipcRenderer.send('swarm:error', msg)
+        } else if (msg.type === 'eof' && !isRelay) {
+          ipcRenderer.send('swarm:eof', msg.reqId)
         }
       }
     } catch (e) {
