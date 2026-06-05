@@ -1,6 +1,6 @@
-import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, session, Menu, webContents } from 'electron'
-import { initializeGhostProtocol, getRelayPort } from '../ghoststack/core/network/GhostProtocol'
-import { SwarmManager } from '../ghoststack/swarm/SwarmManager'
+import { app, BaseWindow, WebContentsView, ipcMain, Menu } from 'electron'
+import { initializeGhostProtocol } from '../ghoststack/core/network/GhostProtocol'
+
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { TabManager } from './tabManager'
@@ -30,8 +30,7 @@ let uiView: WebContentsView | null = null
 let tabManager: TabManager | null = null
 let windowManager: WindowManager | null = null
 let ghostStack: GhostStackOrchestrator | null = null
-let swarmManager: SwarmManager | null = null
-let swarmWorkerWindow: BrowserWindow | null = null
+
 let startupTimeMs = 0
 
 // Register custom ghost:// protocol for deep DPI evasion
@@ -68,32 +67,10 @@ function createWindow(): void {
   uiView.setBackgroundColor('#141414')
   mainWindow.contentView.addChildView(uiView)
 
-  // Initialize SwarmManager and hidden WebRTC worker
-  swarmManager = new SwarmManager()
-  swarmWorkerWindow = new BrowserWindow({
-    show: false,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    }
-  })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    swarmWorkerWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/worker.html`)
-  } else {
-    swarmWorkerWindow.loadFile(join(__dirname, '../renderer/worker.html'))
-  }
-
-  swarmManager.setWorker(swarmWorkerWindow.webContents)
-
-  swarmWorkerWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    console.log(`[SwarmWorker Console] ${message}`)
-  })
 
   // Initialize GhostStack
   ghostStack = new GhostStackOrchestrator()
-  ghostStack.setSwarmManager(swarmManager)
-
   // Initialize managers — GhostStack replaces PrivacyEngine, RoutingEngine, AntiFingerprintEngine
   windowManager = new WindowManager(mainWindow)
   tabManager = new TabManager(mainWindow, uiView, windowManager, ghostStack)
@@ -250,10 +227,6 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   // Clean up GhostStack — wipe all session data
   ghostStack?.destroy()
-  swarmManager?.stop()
-  if (swarmWorkerWindow && !swarmWorkerWindow.isDestroyed()) {
-    swarmWorkerWindow.destroy()
-  }
   if (process.platform !== 'darwin') {
     closeLogger()
     app.quit()

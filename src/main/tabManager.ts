@@ -80,7 +80,7 @@ export class TabManager {
       })
     })
 
-    view.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    view.webContents.on('console-message', (_event, _level, message, _line, _sourceId) => {
       console.log(`[Renderer ${id}] ${message}`);
     })
 

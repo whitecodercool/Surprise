@@ -18,9 +18,8 @@ import { FingerprintShield } from '../privacy/FingerprintShield'
 import { CookieIsolator } from '../privacy/CookieIsolator'
 import { StoragePartitioner } from '../privacy/StoragePartitioner'
 import { DNSResolver } from '../dns/DNSResolver'
-import { getRelayPort, setSwarmManager } from './network/GhostProtocol'
+import { getRelayPort } from './network/GhostProtocol'
 import { GhostStackProxy } from './GhostStackProxy'
-import type { SwarmManager } from '../swarm/SwarmManager'
 
 /** GhostStack operational status */
 export interface GhostStackStatus {
@@ -89,7 +88,7 @@ export class GhostStackOrchestrator {
   private mitmBypassDomains: Set<string> = new Set()
   private proxyPort = 0
   private initialized = false
-  private swarmManager: SwarmManager | null = null
+
 
   constructor() {
     this.cache = new SessionCache()
@@ -129,24 +128,19 @@ export class GhostStackOrchestrator {
       this.proxyPort = await this.proxy.start()
       console.log(`[GhostStack] Bypass proxy started on port ${this.proxyPort}`)
 
-      // GhostStack Proxy is running locally for IP discovery/probing,
-      // but we do NOT force Chromium to route all traffic through it.
-      // We rely on GhostDot and native DoH/ECH for blazing fast bypasses.
+      // GhostStack Proxy is running locally for IP discovery/probing
+      // Route ALL traffic through it unconditionally for instant Ghost Evasion
       await session.defaultSession.setProxy({
-        proxyRules: '', // Direct connection for maximum speed and stability
+        proxyRules: `http=127.0.0.1:${this.proxyPort};https=127.0.0.1:${this.proxyPort}`,
         proxyBypassRules: 'localhost,127.0.0.1,<local>'
       })
-      console.log('[GhostStack] Native direct connection configured')
+      console.log('[GhostStack] Proxy configured to route all traffic through GhostStackProxy')
 
       // Probe network environment
       this.networkEnv = await probeNetwork()
       this.broadcastStatus()
 
-      // Start Swarm Manager if available
-      if (this.swarmManager) {
-        setSwarmManager(this.swarmManager)
-        this.swarmManager.start(this.networkEnv.networkType)
-      }
+
     } catch (err) {
       // GhostStack should never crash the app
       this.networkEnv = {
@@ -170,9 +164,6 @@ export class GhostStackOrchestrator {
     this.uiWebContents = wc
   }
 
-  setSwarmManager(sm: SwarmManager): void {
-    this.swarmManager = sm
-  }
 
   /**
    * Get the FingerprintShield instance for injection scripts.
@@ -231,9 +222,13 @@ export class GhostStackOrchestrator {
   ): Promise<{ ip: string; engine: string; method: string } | null> {
     const cachedBypass = this.cache.getBypass(domain)
     if (cachedBypass) {
-      this.activeBypasses.set(domain, cachedBypass.engine)
+      // If we got a navigation failure while a bypass is already cached, it means the bypass FAILED.
+      // We must clear it to prevent an infinite reload loop!
+      console.log(`[GhostStack] Cached bypass for ${domain} failed during load. Clearing cache and falling back.`)
+      this.cache.clearBypass(domain) // Clear from cache directly
+      this.activeBypasses.set(domain, 'blocked')
       this.broadcastStatus()
-      return { ip: cachedBypass.ip, engine: cachedBypass.engine, method: cachedBypass.method }
+      return null
     }
 
     const startTime = Date.now()
@@ -296,21 +291,24 @@ export class GhostStackOrchestrator {
         }
       }
 
-      // Try GhostSwarm (P2P Fallback) if others failed
-      if (!result && this.swarmManager && this.swarmManager.getStatus().status === 'connected') {
-        result = { ip: 'tunnel', engine: 'swarm', method: 'webrtc-data-channel' }
-      }
+      // Try Tunnel if everything else failed
+      // if (!result) {
+      //   try {
+      //     console.log(`[GhostStack] Native engines failed for ${domain}. Engaging Maximum OPSEC Worker Tunnel...`)
+      //     result = { ip: ipEntry.ip, engine: 'tunnel', method: 'cloudflare-worker' }
+      //   } catch {
+      //     // Tunnel failed
+      //   }
+      // }
 
       if (result) {
         // Cache the successful bypass
-        if (result.engine !== 'swarm') {
-          this.cache.setBypass(
-            domain,
-            result.engine as 'ipraw' | 'splitcast' | 'temporal',
-            result.method,
-            result.ip
-          )
-        }
+        this.cache.setBypass(
+          domain,
+          result.engine as 'ipraw' | 'splitcast' | 'temporal' | 'tunnel',
+          result.method,
+          result.ip
+        )
         this.cache.recordBypassTime(Date.now() - startTime)
         this.activeBypasses.set(domain, result.engine)
         this.broadcastStatus()
@@ -859,7 +857,7 @@ export class GhostStackOrchestrator {
     }
 
     await session.defaultSession.setProxy({
-      proxyRules: `http://127.0.0.1:${this.proxyPort}`,
+      proxyRules: `http=127.0.0.1:${this.proxyPort};https=127.0.0.1:${this.proxyPort}`,
       proxyBypassRules: bypassRules
     })
     console.log(`[GhostStack] Proxy rules updated. Bypass list: ${bypassRules}`)

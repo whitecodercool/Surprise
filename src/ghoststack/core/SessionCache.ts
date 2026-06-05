@@ -14,7 +14,7 @@ export interface CachedIPEntry {
 }
 
 export interface CachedBypassEntry {
-  engine: 'ipraw' | 'splitcast' | 'temporal'
+  engine: 'ipraw' | 'splitcast' | 'temporal' | 'tunnel'
   method: string
   ip: string
   succeededAt: number
@@ -121,6 +121,17 @@ export class SessionCache {
    */
   getBypass(domain: string): CachedBypassEntry | null {
     return this.bypassCache.get(domain) || null
+  }
+
+  /**
+   * Clear a cached bypass method for a domain.
+   * @param domain - The domain to clear
+   */
+  clearBypass(domain: string): void {
+    if (this.bypassCache.has(domain)) {
+      this.bypassCache.delete(domain)
+      this.stats.sitesBypassed = Math.max(0, this.stats.sitesBypassed - 1)
+    }
   }
 
   /**

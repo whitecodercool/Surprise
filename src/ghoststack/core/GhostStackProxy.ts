@@ -12,6 +12,7 @@
 import * as http from 'http'
 import * as net from 'net'
 import type { SessionCache } from './SessionCache'
+import { WorkerTunnel } from './network/WorkerTunnel'
 
 /** Proxy status */
 export interface ProxyStatus {
@@ -157,7 +158,45 @@ export class GhostStackProxy {
         console.log(`[GhostStack Proxy] ${domain} -> direct IP ${targetIP}:${connectPort}${overridePort ? ' (ALT PORT)' : ''}`)
       }
 
-      // Step 2: Open TCP connection to the real server
+      // Check if we should use the Worker Tunnel bypass
+
+      // if (bypass?.engine === 'tunnel') {
+      //   console.log(`[GhostStack Proxy] ${domain} -> Routing through Worker Tunnel...`)
+      //   try {
+      //     const WORKER_URL = 'https://lingering-butterfly-0459.goyalashish367.workers.dev'
+      //     const workerStream = await WorkerTunnel.establishRawTunnel(domain, port, WORKER_URL)
+          
+      //     clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+      //     this.activeTunnels++
+      //     this.totalTunneled++
+
+      //     if (head.length > 0) {
+      //       workerStream.write(head)
+      //     }
+
+      //     clientSocket.pipe(workerStream)
+      //     workerStream.pipe(clientSocket)
+
+      //     const cleanup = () => {
+      //       this.activeTunnels = Math.max(0, this.activeTunnels - 1)
+      //       clientSocket.destroy()
+      //       workerStream.destroy()
+      //     }
+
+      //     clientSocket.on('error', cleanup)
+      //     clientSocket.on('end', cleanup)
+      //     workerStream.on('error', cleanup)
+      //     workerStream.on('end', cleanup)
+      //     return
+      //   } catch (err: any) {
+      //     console.error(`[GhostStack Proxy] Worker Tunnel to ${domain}:${port} failed:`, err.message)
+      //     clientSocket.end('HTTP/1.1 502 Bad Gateway\r\n\r\n')
+      //     return
+      //   }
+      // }
+
+
+      // Default logic: Open TCP connection to the real server
       const serverSocket = net.connect(connectPort, connectTo, () => {
         // CRITICAL: Disable Nagle's algorithm so each write() = separate TCP segment
         serverSocket.setNoDelay(true)
@@ -173,8 +212,28 @@ export class GhostStackProxy {
           serverSocket.write(head)
         }
 
-        // Pipe directly for maximum performance
-        clientSocket.pipe(serverSocket)
+        // Apply DPI Evasion unconditionally to ALL traffic!
+        // This fragments the TLS ClientHello so DPI systems cannot read the SNI domain.
+        console.log(`[GhostStack Proxy] ${domain} -> Applying Native SplitCast (1B+50ms)`)
+        let isFirstChunk = true
+        
+        clientSocket.on('data', (chunk) => {
+          if (isFirstChunk && chunk.length > 10 && chunk[0] === 0x16) { // 0x16 is TLS Handshake
+            isFirstChunk = false
+            const splitPoint = 1
+            const delay = 50
+            
+            const chunk1 = chunk.subarray(0, splitPoint)
+            const chunk2 = chunk.subarray(splitPoint)
+            
+            serverSocket.write(chunk1)
+            setTimeout(() => {
+              if (!serverSocket.destroyed) serverSocket.write(chunk2)
+            }, delay)
+          } else {
+            if (!serverSocket.destroyed) serverSocket.write(chunk)
+          }
+        })
         serverSocket.pipe(clientSocket)
 
         const cleanup = () => {

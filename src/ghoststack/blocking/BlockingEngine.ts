@@ -3,7 +3,7 @@
  * Network-level ad/tracker blocking via Electron session.webRequest.
  * @module BlockingEngine
  */
-import { type Session } from 'electron'
+
 import { BloomFilter } from './BloomFilter'
 import { URLStripper } from './URLStripper'
 
@@ -20,7 +20,7 @@ export interface BlockingStats {
 
 /** Built-in tracker domains */
 const TRACKER_DOMAINS = [
-  'google-analytics.com', 'doubleclick.net', 'facebook.net', 'connect.facebook.net', 'pixel.facebook.com',
+  'trafficjunky.net', 'adtng.com', 'google-analytics.com', 'doubleclick.net', 'facebook.net', 'connect.facebook.net', 'pixel.facebook.com',
   'analytics.yahoo.com', 'scorecardresearch.com', 'quantserve.com', 'adservice.google.com',
   'googlesyndication.com', 'googleadservices.com', 'amazon-adsystem.com', 'criteo.com', 'outbrain.com',
   'taboola.com', 'moatads.com', 'adsafeprotected.com', 'bidswitch.net', 'casalemedia.com',
@@ -59,10 +59,20 @@ export class BlockingEngine {
     for (const d of CRYPTO_MINERS) this.bloomFilter.add(d)
   }
 
-  /** Synchronous check for onBeforeRequest to allow centralization */
-  handleBeforeRequest(details: any): { cancel?: boolean; redirectURL?: string } | null {
+  /** Handle Electron webRequest interceptor */
+  handleBeforeRequest(details: Electron.OnBeforeRequestListenerDetails): Electron.CallbackResponse | null {
     try {
-      const url = new URL(details.url)
+      let urlStr = details.url
+      // Unwrap GhostProtocol local relay URLs so we can block the actual domain
+      if (urlStr.startsWith('http://127.0.0.1') && urlStr.includes('/r?u=')) {
+        const uParams = new URL(urlStr)
+        const innerUrl = uParams.searchParams.get('u')
+        if (innerUrl) {
+          urlStr = innerUrl
+        }
+      }
+      
+      const url = new URL(urlStr)
       const domain = url.hostname
 
       // 1. URL Parameter Stripping

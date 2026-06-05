@@ -89,52 +89,23 @@ export class FingerprintShield {
 
   /** @returns Injectable JavaScript for fingerprint spoofing */
   getSpoofScript(): string {
-    const s = this.settings
-    const gpu = GPU_STRINGS[this.gpuIdx]
-    const scr = RESOLUTIONS[this.screenIdx]
-    const tz = s.timezoneOverride || 'UTC'
-    const parts: string[] = []
-
-    parts.push(`(function(){
-const _sid='${this.sessionId.substring(0,16)}';
-const _h=function(s){let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}return Math.abs(h);};
-const _n=function(s){return(Math.sin(s)*10000)-Math.floor(Math.sin(s)*10000);};
-const _d=location.hostname;
-const _s=_h(_sid+_d);`)
-
-    if (s.canvasSpoofing) parts.push(`
-const _cTD=HTMLCanvasElement.prototype.toDataURL;
-const _cGI=CanvasRenderingContext2D.prototype.getImageData;
-HTMLCanvasElement.prototype.toDataURL=function(){const c=this.getContext('2d');if(c&&this.width>0&&this.height>0){try{const x=Math.floor(Math.abs(_n(_s+1))*Math.min(this.width,10));const y=Math.floor(Math.abs(_n(_s+2))*Math.min(this.height,10));const id=c.getImageData(x,y,1,1);id.data[3]=id.data[3]===255?254:255;c.putImageData(new ImageData(new Uint8ClampedArray(id.data),1,1),x,y);}catch(e){}}return _cTD.apply(this,arguments);};
-CanvasRenderingContext2D.prototype.getImageData=function(){const d=_cGI.apply(this,arguments);if(d&&d.data.length>0){d.data[_s%Math.max(1,d.data.length-4)]=(d.data[_s%Math.max(1,d.data.length-4)]+1)%256;}return d;};`)
-
-    if (s.webglSpoofing) parts.push(`
-const _wgl=function(p,o){p.getParameter=function(pm){if(pm===37445)return'${gpu.v}';if(pm===37446)return'${gpu.r}';return o.apply(this,arguments);};};
-if(typeof WebGLRenderingContext!=='undefined')_wgl(WebGLRenderingContext.prototype,WebGLRenderingContext.prototype.getParameter);
-if(typeof WebGL2RenderingContext!=='undefined')_wgl(WebGL2RenderingContext.prototype,WebGL2RenderingContext.prototype.getParameter);`)
-
-    if (s.audioSpoofing) parts.push(`
-if(typeof AudioContext!=='undefined'){const _AC=AudioContext;const _oca=_AC.prototype.createAnalyser;_AC.prototype.createAnalyser=function(){const a=_oca.apply(this,arguments);const _gf=a.getFloatFrequencyData.bind(a);a.getFloatFrequencyData=function(arr){_gf(arr);for(let i=0;i<arr.length;i++)arr[i]+=_n(_s+i)*0.0001;};return a;};}`)
-
-    if (s.fontSpoofing) parts.push(`
-if(document.fonts&&document.fonts.check){const _bf=['Arial','Times New Roman','Courier New','Georgia','Verdana'];const _ef=['Helvetica','Palatino','Comic Sans MS','Impact','Tahoma','Trebuchet MS','Cambria','Calibri'];const _sf=new Set(_bf);for(let i=0;i<_ef.length;i++){if(_n(_s+i+100)>0.5)_sf.add(_ef[i]);}const _oc=document.fonts.check.bind(document.fonts);document.fonts.check=function(f){const m=f.match(/["']([^"']+)["']/);if(m&&!_sf.has(m[1]))return false;return _oc(f);};}`)
-
-    if (s.screenSpoofing) parts.push(`
-Object.defineProperty(screen,'width',{get:()=>${scr[0]}});Object.defineProperty(screen,'height',{get:()=>${scr[1]}});Object.defineProperty(screen,'availWidth',{get:()=>${scr[0]}});Object.defineProperty(screen,'availHeight',{get:()=>${scr[1]-40}});Object.defineProperty(screen,'colorDepth',{get:()=>24});Object.defineProperty(screen,'pixelDepth',{get:()=>24});`)
-
-    if (s.batterySpoofing) parts.push(`
-if(navigator.getBattery)navigator.getBattery=()=>Promise.resolve({charging:true,chargingTime:Infinity,dischargingTime:Infinity,level:0.75,addEventListener(){},removeEventListener(){},dispatchEvent(){return true}});`)
-
-    if (s.hardwareSpoofing) parts.push(`
-Object.defineProperty(navigator,'hardwareConcurrency',{get:()=>4});Object.defineProperty(navigator,'deviceMemory',{get:()=>8});`)
-
-    if (s.timezoneSpoofing) parts.push(`
-const _oDTF=Intl.DateTimeFormat;Intl.DateTimeFormat=function(){const f=new _oDTF(...arguments);const _or=f.resolvedOptions.bind(f);f.resolvedOptions=function(){const o=_or();o.timeZone='${tz}';return o;};return f;};Intl.DateTimeFormat.prototype=_oDTF.prototype;Intl.DateTimeFormat.supportedLocalesOf=_oDTF.supportedLocalesOf;`)
-
-    if (s.webrtcProtection) parts.push(this.webrtcShield.getInjectionScript())
-
-    parts.push('})();')
-    return parts.join('\n')
+    return `(function() {
+      if (navigator.sendBeacon) {
+        const originalSendBeacon = navigator.sendBeacon;
+        navigator.sendBeacon = function(url, data) {
+          if (url.startsWith('/')) {
+            url = 'https://' + location.host + url;
+          }
+          try {
+            return originalSendBeacon.call(navigator, url, data);
+          } catch (e) {
+            // Fallback to fetch if sendBeacon fails (e.g. because of ghost:// protocol)
+            fetch(url, { method: 'POST', body: data, keepalive: true }).catch(() => {});
+            return true;
+          }
+        };
+      }
+    })();`
   }
 
   getSettings(): FingerprintSettings { return { ...this.settings } }

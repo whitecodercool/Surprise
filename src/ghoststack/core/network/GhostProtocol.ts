@@ -2,18 +2,7 @@ import { protocol, session } from 'electron'
 import * as http from 'http'
 import { Readable } from 'stream'
 import { GhostEngine } from './GhostEngine'
-import type { SwarmManager } from '../../swarm/SwarmManager'
 
-// ── GhostSwarm P2P fallback ──
-let swarmManagerRef: SwarmManager | null = null
-
-/**
- * Set the SwarmManager reference so GhostProtocol can fall back to P2P.
- * Called by the orchestrator after initialization.
- */
-export function setSwarmManager(sm: SwarmManager): void {
-  swarmManagerRef = sm
-}
 
 /**
  * GhostProtocol v5 — Local Media Relay
@@ -228,21 +217,7 @@ function startLocalRelay(): Promise<number> {
           console.warn(`[GhostProtocol] GhostEngine failed for ${targetUrl}:`, engineErr)
         }
 
-        // Fallback: Try GhostSwarm P2P tunnel
-        if ((!response || !response.ok) && swarmManagerRef && swarmManagerRef.getStatus().status === 'connected') {
-          try {
-            console.log(`[GhostProtocol] 🔀 Falling back to GhostSwarm P2P for: ${targetUrl.substring(0, 80)}`)
-            const swarmRes = await swarmManagerRef.fetch(targetUrl, fetchOptions)
-            // Convert SwarmResponse to a standard Response object
-            response = new Response(new Uint8Array(swarmRes.data), {
-              status: swarmRes.status,
-              headers: swarmRes.headers
-            })
-            console.log(`[GhostProtocol] ✅ Swarm relay ${swarmRes.status}: ${targetUrl.substring(0, 80)}`)
-          } catch (swarmErr) {
-            console.error(`[GhostProtocol] ❌ GhostSwarm P2P also failed for ${targetUrl}:`, swarmErr)
-          }
-        }
+
 
         if (!response) {
           console.error(`[GhostProtocol] ❌ All engines failed for: ${targetUrl}`)
@@ -419,19 +394,7 @@ export async function initializeGhostProtocol(): Promise<void> {
         console.warn(`[GhostProtocol] GhostEngine failed for ${realUrl}:`, engineErr)
       }
 
-      // Fallback: Try GhostSwarm P2P tunnel
-      if ((!resp || !resp.ok) && swarmManagerRef && swarmManagerRef.getStatus().status === 'connected') {
-        try {
-          console.log(`[GhostProtocol] 🔀 Ghost:// falling back to GhostSwarm P2P for: ${hostname}`)
-          const swarmRes = await swarmManagerRef.fetch(realUrl, fetchOptions)
-          resp = new Response(new Uint8Array(swarmRes.data), {
-            status: swarmRes.status,
-            headers: swarmRes.headers
-          })
-        } catch (swarmErr) {
-          console.error(`[GhostProtocol] ❌ GhostSwarm P2P also failed for ${hostname}:`, swarmErr)
-        }
-      }
+
 
       if (!resp) {
         throw new Error(`All bypass engines failed (no response)`)
@@ -451,10 +414,9 @@ export async function initializeGhostProtocol(): Promise<void> {
         if (resp.headers.has('content-range')) headers['Content-Range'] = resp.headers.get('content-range')!
         if (resp.headers.has('accept-ranges')) headers['Accept-Ranges'] = resp.headers.get('accept-ranges')!
 
-        // Return a new response from the buffered data to avoid Stream truncation issues
-        // and because undici already decompresses the body automatically.
-        const buf = await resp.arrayBuffer()
-        return new Response(buf, {
+        // Return the raw stream directly instead of buffering the entire file into RAM!
+        // This allows video players to perform chunked buffering properly.
+        return new Response(resp.body, {
           status: resp.status,
           headers
         })
@@ -532,6 +494,27 @@ try{
     if(needsRelay(arguments[1]))arguments[1]=R+encodeURIComponent(arguments[1]);
     return _x.apply(this,arguments);
   };
+}catch(e){}
+try{
+  if(navigator.sendBeacon){
+    var _sb=navigator.sendBeacon;
+    Object.defineProperty(navigator, 'sendBeacon', {
+      value: function(url, data) {
+        if(typeof url==='string'){
+          if(url.startsWith('/')) url='https://'+location.host+url;
+          if(needsRelay(url)) url=R+encodeURIComponent(url);
+        }
+        try {
+          return _sb.call(navigator, url, data);
+        } catch (e) {
+          window.fetch(url, { method: 'POST', body: data, keepalive: true }).catch(function(){});
+          return true;
+        }
+      },
+      writable: true,
+      configurable: true
+    });
+  }
 }catch(e){}
 })();</script>`
 }

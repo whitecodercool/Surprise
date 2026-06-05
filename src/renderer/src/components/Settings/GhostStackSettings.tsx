@@ -71,6 +71,7 @@ export default function GhostStackSettings() {
           <option value="auto">Auto (Recommended)</option>
           <option value="ipraw">IPRaw Only</option>
           <option value="splitcast">SplitCast Only</option>
+          <option value="tunnel">Worker Tunnel Only</option>
           <option value="direct">Direct (No Bypass)</option>
         </select>
       </StatusCard>
