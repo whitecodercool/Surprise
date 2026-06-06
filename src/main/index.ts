@@ -7,6 +7,7 @@ import { TabManager } from './tabManager'
 import { WindowManager } from './windowManager'
 import { GhostStackOrchestrator } from '../ghoststack/core/GhostStackOrchestrator'
 import { initLogger, closeLogger, getLogFilePath } from '../ghoststack/core/Logger'
+import { WalletIpcHandler } from '../ghoststack/wallet/WalletIpcHandler'
 
 // ─── GhostStack Chromium Flags ───
 // Encrypt DNS queries
@@ -186,6 +187,11 @@ function registerIpcHandlers(): void {
   })
 
   // GhostStack IPC handlers are registered inside the orchestrator's initialize() method
+  
+  // Register Web3 Wallet IPC Handlers
+  const walletHandler = new WalletIpcHandler()
+  if (uiView) walletHandler.setUIWebContents(uiView.webContents)
+  walletHandler.registerHandlers()
 }
 
 function startMemoryMonitor(): void {

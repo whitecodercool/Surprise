@@ -1,0 +1,12 @@
+{
+  "name": "ghost-c2-admin",
+  "version": "1.0.0",
+  "description": "Matrix CLI Dashboard for Ghost C2",
+  "main": "admin.js",
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "discord.js": "^14.14.1",
+    "socks-proxy-agent": "^8.0.2"
+  }
+}

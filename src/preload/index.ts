@@ -82,16 +82,56 @@ const api = {
   ghoststackGetDNSSettings: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-dns-settings'),
   ghoststackUpdateDNSSettings: (settings: any): void => ipcRenderer.send('ghoststack:update-dns-settings', settings),
   ghoststackFlushDNSCache: (): Promise<boolean> => ipcRenderer.invoke('ghoststack:flush-dns-cache'),
-  ghoststackDNSLeakTest: (): Promise<any> => ipcRenderer.invoke('ghoststack:dns-leak-test')
+  ghoststackDNSLeakTest: (): Promise<any> => ipcRenderer.invoke('ghoststack:dns-leak-test'),
+
+  // Web3 Wallet
+  onWalletPrompt: (callback: (_data: any) => void): void => {
+    ipcRenderer.removeAllListeners('wallet:prompt-approval')
+    ipcRenderer.on('wallet:prompt-approval', (_event, data) => callback(data))
+  },
+  respondWalletPrompt: (approved: boolean): Promise<any> => ipcRenderer.invoke('wallet:respond-approval', approved)
+}
+
+const ethereum = {
+  isMetaMask: true, // We spoof MetaMask for maximum dApp compatibility
+  request: async ({ method, params }: { method: string, params?: any[] }) => {
+    switch (method) {
+      case 'eth_requestAccounts':
+        return await ipcRenderer.invoke('wallet:requestAccounts')
+      case 'eth_accounts':
+        try {
+          const status = await ipcRenderer.invoke('wallet:status')
+          return status.isUnlocked ? [status.address] : []
+        } catch { return [] }
+      case 'eth_sendTransaction':
+        return await ipcRenderer.invoke('wallet:sendTransaction', params?.[0])
+      case 'personal_sign':
+        return await ipcRenderer.invoke('wallet:personalSign', params?.[0])
+      case 'eth_chainId':
+        return '0x1' // Default Mainnet for now
+      default:
+        console.warn(`[GhostWallet] Unhandled Ethereum RPC method: ${method}`)
+        // Ideally we proxy unknown read-methods directly to the PublicNode RPC via IPC
+        throw new Error(`Method ${method} not implemented in GhostWallet yet`)
+    }
+  },
+  on: (event: string, _callback: any) => {
+    // Stub out event listeners so dApps don't crash
+    console.log(`[GhostWallet] Stubbed event listener for: ${event}`)
+  },
+  removeListener: () => {}
 }
 
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('ethereum', ethereum)
   } catch (error) {
     console.error(error)
   }
 } else {
   // @ts-ignore
   window.api = api
+  // @ts-ignore
+  window.ethereum = ethereum
 }

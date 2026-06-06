@@ -37,8 +37,9 @@ export class TabManager {
 
     const view = new WebContentsView({
       webPreferences: {
-        sandbox: true,
-        contextIsolation: true,
+        sandbox: false,
+        preload: require('path').join(__dirname, '../preload/tab.js'),
+        contextIsolation: false, // Required for mutable window.ethereum injection without CSP violation
         nodeIntegration: false,
         webSecurity: false
       }

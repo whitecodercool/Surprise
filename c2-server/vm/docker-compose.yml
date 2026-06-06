@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  tor-proxy:
+    image: dperson/torproxy
+    ports:
+      - "127.0.0.1:9050:9050"
+    networks:
+      - c2-network
+
+  c2-admin:
+    build: .
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - c2-network
+    depends_on:
+      - tor-proxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Force network traffic through the Tor proxy
+    environment:
+      - http_proxy=socks5h://tor-proxy:9050
+      - https_proxy=socks5h://tor-proxy:9050
+    tty: true
+    stdin_open: true
+
+networks:
+  c2-network:
+    driver: bridge
