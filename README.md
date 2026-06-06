@@ -1,5 +1,5 @@
-# flux-browser
-
+# Ghost-browser
+<img src="./assets/cyber-workspace.png" width="500" alt="Cyber workspace — pixel art hacker setup"/>
 An Electron application with React and TypeScript
 
 ## Recommended IDE Setup
