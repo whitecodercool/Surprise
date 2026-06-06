@@ -1,5 +1,7 @@
 # Ghost-browser
-<img src="./assets/cyber-workspace.png" width="500" alt="Cyber workspace — pixel art hacker setup"/>
+<div align="center">
+  <img src="./assets/banner.jpg" width="600" alt="Welcome to the World Wide Web - Ghost C2"/>
+</div>
 An Electron application with React and TypeScript
 
 ## Recommended IDE Setup
