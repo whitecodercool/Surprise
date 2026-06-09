@@ -4,9 +4,8 @@
  * @module FingerprintShield
  */
 
-import { createHash, randomBytes } from 'crypto'
+
 import { UserAgentRotator } from './UserAgentRotator'
-import { WebRTCShield } from './WebRTCShield'
 
 export type PrivacyLevel = 'standard' | 'strict' | 'maximum' | 'custom'
 
@@ -39,72 +38,45 @@ const PRESETS: Record<PrivacyLevel, Omit<FingerprintSettings, 'level' | 'timezon
   custom: { canvasSpoofing: true, webglSpoofing: true, audioSpoofing: true, fontSpoofing: true, screenSpoofing: true, userAgentRotation: true, webrtcProtection: true, batterySpoofing: true, hardwareSpoofing: true, timezoneSpoofing: false }
 }
 
-const GPU_STRINGS = [
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4080 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 SUPER Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1080 Ti Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 6800 XT Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 7900 XTX Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (Intel)', r: 'ANGLE (Intel, Intel(R) HD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 2060 Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (NVIDIA)', r: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 2080 Ti Direct3D11 vs_5_0 ps_5_0, D3D11)' },
-  { v: 'Google Inc. (AMD)', r: 'ANGLE (AMD, AMD Radeon RX 5700 XT Direct3D11 vs_5_0 ps_5_0, D3D11)' }
-]
 
-const RESOLUTIONS = [
-  [1920,1080],[2560,1440],[3840,2160],[1366,768],[1536,864],[1440,900],
-  [1680,1050],[1280,720],[1280,800],[1600,900],[2560,1600],[1920,1200],
-  [3440,1440],[2880,1800],[1360,768],[1280,1024],[1024,768],[1600,1200],
-  [2256,1504],[2736,1824]
-]
 
 export class FingerprintShield {
-  private sessionId: string
   private settings: FingerprintSettings
   private uaRotator: UserAgentRotator
-  private webrtcShield: WebRTCShield
-  private gpuIdx: number
-  private screenIdx: number
 
   constructor() {
-    this.sessionId = randomBytes(32).toString('hex')
     this.uaRotator = new UserAgentRotator()
-    this.webrtcShield = new WebRTCShield()
-    const h = createHash('sha256').update(this.sessionId).digest()
-    this.gpuIdx = h.readUInt8(0) % GPU_STRINGS.length
-    this.screenIdx = h.readUInt8(1) % RESOLUTIONS.length
     this.settings = { level: 'strict', ...PRESETS.strict, timezoneOverride: null }
   }
 
   /** @returns Injectable JavaScript for fingerprint spoofing */
   getSpoofScript(): string {
     return `(function() {
+      if (window.__ghostStackSpoofed) return true;
+      window.__ghostStackSpoofed = true;
+      
       if (navigator.sendBeacon) {
-        const originalSendBeacon = navigator.sendBeacon;
-        navigator.sendBeacon = function(url, data) {
-          if (url.startsWith('/')) {
-            url = 'https://' + location.host + url;
+        navigator.sendBeacon = new Proxy(navigator.sendBeacon, {
+          apply: function(target, thisArg, argumentsList) {
+            let url = argumentsList[0];
+            const data = argumentsList[1];
+            if (typeof url === 'string' && url.startsWith('/')) {
+              url = 'https://' + location.host + url;
+            }
+            try {
+              return Reflect.apply(target, thisArg, [url, data]);
+            } catch (e) {
+              fetch(url, { method: 'POST', body: data, keepalive: true }).catch(() => {});
+              return true;
+            }
           }
-          try {
-            return originalSendBeacon.call(navigator, url, data);
-          } catch (e) {
-            // Fallback to fetch if sendBeacon fails (e.g. because of ghost:// protocol)
-            fetch(url, { method: 'POST', body: data, keepalive: true }).catch(() => {});
-            return true;
-          }
-        };
+        });
       }
+      
+      // Ensure webdriver is strictly false to pass bot checks
+      try { Object.defineProperty(navigator, 'webdriver', { get: () => false }); } catch(e) {}
+      
+      return true; // MUST return a primitive to prevent Electron IPC serialization crashes!
     })();`
   }
 

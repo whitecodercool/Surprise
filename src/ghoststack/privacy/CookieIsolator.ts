@@ -12,7 +12,7 @@ export class CookieIsolator {
   apply(): void { /* Applied via applyToSession */ }
 
   /** Apply cookie isolation interceptors to a session */
-  applyToSession(ses: Session): void {
+  applyToSession(_ses: Session): void {
     // Handled in GhostStackOrchestrator unified interceptor
   }
 

@@ -8,6 +8,8 @@ import { WindowManager } from './windowManager'
 import { GhostStackOrchestrator } from '../ghoststack/core/GhostStackOrchestrator'
 import { initLogger, closeLogger, getLogFilePath } from '../ghoststack/core/Logger'
 import { WalletIpcHandler } from '../ghoststack/wallet/WalletIpcHandler'
+import { torService } from './services/TorService'
+import { darkRoomProxy, loadOnionAddr } from './services/DarkRoomProxy'
 
 // ─── GhostStack Chromium Flags ───
 // Encrypt DNS queries
@@ -25,6 +27,14 @@ app.commandLine.appendSwitch('quic-version', 'h3')
 app.commandLine.appendSwitch('ignore-certificate-errors')
 app.commandLine.appendSwitch('allow-insecure-localhost', 'true')
 app.commandLine.appendSwitch('disable-features', 'CertificateTransparencyComponentUpdater')
+
+// --- Anti-Bot / Anti-Fingerprint ---
+// Hide the fact that this is an automated browser (removes navigator.webdriver)
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
+
+import { UserAgentRotator } from '../ghoststack/privacy/UserAgentRotator'
+const uaRotator = new UserAgentRotator()
+app.userAgentFallback = uaRotator.getSessionUA()
 
 let mainWindow: BaseWindow | null = null
 let uiView: WebContentsView | null = null
@@ -187,7 +197,43 @@ function registerIpcHandlers(): void {
   })
 
   // GhostStack IPC handlers are registered inside the orchestrator's initialize() method
-  
+
+  // ── Dark Room IPC ─────────────────────────────────────────────────────────
+  ipcMain.handle('darkroom:get-config', () => ({
+    onionAddr:  loadOnionAddr(),
+    torStatus:  torService.getStatus(),
+    torFound:   !!torService.findTorBinary(),
+  }))
+
+  ipcMain.handle('darkroom:set-onion-addr', (_e, addr: string) => {
+    darkRoomProxy.setOnionAddr(addr)
+    return true
+  })
+
+  ipcMain.handle('darkroom:start', async () => {
+    if (uiView) torService.setWebContents(uiView.webContents)
+
+    if (!darkRoomProxy.getOnionAddr()) {
+      return { ok: false, error: 'NO_ONION_ADDR' }
+    }
+
+    try {
+      await torService.start()
+      const port = await darkRoomProxy.start()
+      return { ok: true, port }
+    } catch (err: any) {
+      const msg: string = err?.message || String(err)
+      if (msg === 'TOR_NOT_FOUND') return { ok: false, error: 'TOR_NOT_FOUND' }
+      return { ok: false, error: msg }
+    }
+  })
+
+  ipcMain.handle('darkroom:stop', () => {
+    darkRoomProxy.stop()
+    torService.stop()
+    return true
+  })
+
   // Register Web3 Wallet IPC Handlers
   const walletHandler = new WalletIpcHandler()
   if (uiView) walletHandler.setUIWebContents(uiView.webContents)
@@ -218,6 +264,16 @@ app.whenReady().then(async () => {
 
   registerIpcHandlers()
   createWindow()
+
+  // Pre-warm Tor in the background so Dark Room lobby is instant when user opens it
+  if (loadOnionAddr()) {
+    setTimeout(() => {
+      if (uiView) torService.setWebContents(uiView.webContents)
+      torService.start().then(() => {
+        darkRoomProxy.start().catch(() => {})
+      }).catch(() => {})
+    }, 3000)
+  }
 
   app.on('activate', () => {
     if (!mainWindow) createWindow()

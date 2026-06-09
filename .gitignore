@@ -1,4 +1,6 @@
 node_modules
+resources/tor/
+resources/darkroom.json
 dist
 out
 .DS_Store

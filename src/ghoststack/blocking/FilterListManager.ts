@@ -11,7 +11,6 @@ const FILTER_LIST_URLS = [
 
 export class FilterListManager {
   private domains: Set<string> = new Set()
-  private lastUpdate = 0
 
   /** Load filter lists (bundled domains as fallback) */
   async initialize(): Promise<void> {
@@ -39,7 +38,7 @@ export class FilterListManager {
       try {
         const text = await this.fetchText(url)
         this.parseFilterList(text)
-        this.lastUpdate = Date.now()
+        this.parseFilterList(text)
       } catch { /* use bundled */ }
     }
   }

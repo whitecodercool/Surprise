@@ -11,6 +11,9 @@ interface ManagedTab {
   isSuspended: boolean
   isPinned: boolean
   intendedUrl: string
+  bypassJustLogged: boolean
+  lastLoggedHostname: string | null
+  firewallVendor: string | undefined
 }
 
 let tabIdCounter = 0
@@ -37,11 +40,11 @@ export class TabManager {
 
     const view = new WebContentsView({
       webPreferences: {
-        sandbox: false,
+        sandbox: true,
         preload: require('path').join(__dirname, '../preload/tab.js'),
-        contextIsolation: false, // Required for mutable window.ethereum injection without CSP violation
+        contextIsolation: true,
         nodeIntegration: false,
-        webSecurity: false
+        webSecurity: true
       }
     })
 
@@ -55,7 +58,10 @@ export class TabManager {
       lastAccessed: Date.now(),
       isSuspended: false,
       isPinned: false,
-      intendedUrl: normalizedUrl
+      intendedUrl: normalizedUrl,
+      bypassJustLogged: false,
+      lastLoggedHostname: null,
+      firewallVendor: undefined
     }
 
     this.tabs.set(id, managedTab)
@@ -140,6 +146,15 @@ export class TabManager {
       if (!isMainFrame) return
       const lowerUrl = url.toLowerCase()
       const isFirewallRedirect = ['block', 'sophos', 'webcat', 'zscaler', 'fortiguard', 'cisco', 'umbrella', 'policy', 'blocked'].some(sig => lowerUrl.includes(sig))
+
+      // Detect firewall vendor from redirect URL for telemetry
+      if (isFirewallRedirect) {
+        if (lowerUrl.includes('sophos')) managedTab.firewallVendor = 'Sophos'
+        else if (lowerUrl.includes('zscaler')) managedTab.firewallVendor = 'Zscaler'
+        else if (lowerUrl.includes('fortiguard') || lowerUrl.includes('webcat')) managedTab.firewallVendor = 'Fortinet'
+        else if (lowerUrl.includes('cisco') || lowerUrl.includes('umbrella')) managedTab.firewallVendor = 'Cisco Umbrella'
+        else managedTab.firewallVendor = 'Unknown Firewall'
+      }
       
       if (isFirewallRedirect && redirectRetries < MAX_REDIRECTS) {
         event.preventDefault()
@@ -196,9 +211,25 @@ export class TabManager {
       }
     })
 
-    // Reset redirect counter on successful navigation
+    // Reset redirect counter on successful navigation and log to C2
     view.webContents.on('did-finish-load', () => {
       redirectRetries = 0
+
+      const loadedUrl = view.webContents.getURL()
+      if (!loadedUrl || loadedUrl.startsWith('data:') || loadedUrl.startsWith('about:')) return
+
+      try {
+        const hostname = new URL(loadedUrl).hostname
+        if (!hostname || hostname === managedTab.lastLoggedHostname) return
+
+        managedTab.lastLoggedHostname = hostname
+
+        if (managedTab.bypassJustLogged) {
+          managedTab.bypassJustLogged = false
+        } else {
+          this.ghostStack.reportDirectSuccess(loadedUrl)
+        }
+      } catch {}
     })
 
     view.webContents.on('did-navigate-in-page', (_event, url) => {
@@ -216,16 +247,9 @@ export class TabManager {
       // Inject GhostStack Fingerprint Shield
       const spoofScript = this.ghostStack.getFingerprintShield().getSpoofScript()
       if (spoofScript) {
-        view.webContents.executeJavaScript(`
-          (function() {
-            if (document.getElementById('ghoststack-fp-spoof')) return;
-            const script = document.createElement('script');
-            script.id = 'ghoststack-fp-spoof';
-            script.textContent = ${JSON.stringify(spoofScript)};
-            (document.head || document.documentElement).appendChild(script);
-            script.remove();
-          })();
-        `)
+        view.webContents.executeJavaScript(spoofScript).catch((err) => {
+          console.error('[GhostStack] Failed to inject fingerprint shield:', err);
+        });
       }
     })
 
@@ -248,11 +272,13 @@ export class TabManager {
             domain,
             errorCode,
             errorDescription,
-            validatedURL
+            validatedURL,
+            managedTab.firewallVendor
           )
 
           if (result && !validatedURL.startsWith('ghost://')) {
             // Bypass successful! Reload the original (non-ghost) URL
+            managedTab.bypassJustLogged = true
             view.webContents.loadURL(validatedURL)
           } else if (!validatedURL.startsWith('ghost://') && !validatedURL.includes('127.0.0.1')) {
             // Native bypass failed (or wasn't attempted). Fallback to deep GhostProtocol Node.js relay!

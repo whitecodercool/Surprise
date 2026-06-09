@@ -62,6 +62,9 @@ const api = {
     ipcRenderer.removeAllListeners('ghoststack:toast')
     ipcRenderer.on('ghoststack:toast', (_event, data) => callback(data))
   },
+  onGhoststackLogEntry: (callback: (_log: any) => void): void => {
+    ipcRenderer.on('ghoststack:log-entry', (_event, log) => callback(log))
+  },
 
   // GhostStack Privacy
   ghoststackGetPrivacySettings: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-privacy-settings'),
@@ -83,6 +86,16 @@ const api = {
   ghoststackUpdateDNSSettings: (settings: any): void => ipcRenderer.send('ghoststack:update-dns-settings', settings),
   ghoststackFlushDNSCache: (): Promise<boolean> => ipcRenderer.invoke('ghoststack:flush-dns-cache'),
   ghoststackDNSLeakTest: (): Promise<any> => ipcRenderer.invoke('ghoststack:dns-leak-test'),
+
+  // ── Dark Room ──
+  darkroomGetConfig: (): Promise<any> => ipcRenderer.invoke('darkroom:get-config'),
+  darkroomSetOnionAddr: (addr: string): Promise<boolean> => ipcRenderer.invoke('darkroom:set-onion-addr', addr),
+  darkroomStart: (): Promise<any> => ipcRenderer.invoke('darkroom:start'),
+  darkroomStop: (): Promise<boolean> => ipcRenderer.invoke('darkroom:stop'),
+  onDarkroomTorStatus: (cb: (_data: any) => void): void => {
+    ipcRenderer.removeAllListeners('darkroom:tor-status')
+    ipcRenderer.on('darkroom:tor-status', (_e, data) => cb(data))
+  },
 
   // Web3 Wallet
   onWalletPrompt: (callback: (_data: any) => void): void => {

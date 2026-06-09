@@ -116,6 +116,7 @@ export interface BrowserState {
   tabSearchOpen: boolean
   settingsOpen: boolean
   settingsTab: SettingsTab
+  darkRoomOpen: boolean
   ghoststackStatus: GhostStackStatus | null
   uiSettings: UISettings
   performanceMetrics: PerformanceMetrics
@@ -143,6 +144,7 @@ export type BrowserAction =
   | { type: 'TOGGLE_TAB_SEARCH' }
   | { type: 'TOGGLE_SETTINGS' }
   | { type: 'SET_SETTINGS_TAB'; payload: SettingsTab }
+  | { type: 'TOGGLE_DARK_ROOM' }
   | { type: 'SET_GHOSTSTACK_STATUS'; payload: GhostStackStatus }
   | { type: 'SET_UI_SETTINGS'; payload: Partial<UISettings> }
   | { type: 'SET_PERFORMANCE_METRICS'; payload: Partial<PerformanceMetrics> }
@@ -175,6 +177,7 @@ export interface FluxAPI {
   ghoststackRescanNetwork: () => Promise<NetworkEnvironment>
   ghoststackGetNetworkEnv: () => Promise<NetworkEnvironment>
   onGhoststackStatusChanged: (callback: (status: GhostStackStatus) => void) => void
+  onGhoststackLogEntry: (callback: (log: any) => void) => void
   onGhoststackToast: (callback: (data: { domain: string; engine: string; message: string }) => void) => void
   ghoststackGetPrivacySettings: () => Promise<any>
   ghoststackUpdatePrivacySettings: (settings: any) => void
@@ -191,4 +194,10 @@ export interface FluxAPI {
   ghoststackUpdateDNSSettings: (settings: any) => void
   ghoststackFlushDNSCache: () => Promise<boolean>
   ghoststackDNSLeakTest: () => Promise<any>
+  // Dark Room
+  darkroomGetConfig: () => Promise<{ onionAddr: string; torStatus: string; torFound: boolean }>
+  darkroomSetOnionAddr: (addr: string) => Promise<boolean>
+  darkroomStart: () => Promise<{ ok: boolean; port?: number; error?: string }>
+  darkroomStop: () => Promise<boolean>
+  onDarkroomTorStatus: (cb: (data: { status: string; progress: number | null }) => void) => void
 }

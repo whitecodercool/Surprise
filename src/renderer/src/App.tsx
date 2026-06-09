@@ -8,6 +8,7 @@ import CommandPalette from './components/CommandPalette/CommandPalette'
 import SplashScreen from './components/SplashScreen/SplashScreen'
 import SettingsPage from './components/Settings/SettingsPage'
 import { WalletApproval } from './components/Wallet/WalletApproval'
+import DarkRoomPanel from './components/DarkRoom/DarkRoomPanel'
 
 function BrowserShell() {
   const { state, dispatch } = useBrowser()
@@ -81,6 +82,11 @@ function BrowserShell() {
 
       {/* Wallet Approval Overlay */}
       <WalletApproval />
+
+      {/* Dark Room Panel */}
+      {state.darkRoomOpen && (
+        <DarkRoomPanel onClose={() => dispatch({ type: 'TOGGLE_DARK_ROOM' })} />
+      )}
 
     </div>
   )

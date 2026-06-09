@@ -16,16 +16,21 @@
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
+    "download-tor": "node scripts/download-tor.js",
+    "build:win": "npm run download-tor && npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@maxmind/geoip2-node": "^6.3.4",
     "argon2": "^0.44.0",
     "electron": "^39.8.10",
     "ethers": "^6.16.0",
+    "framer-motion": "^12.40.0",
+    "node-forge": "^1.4.0",
+    "tweetnacl": "^1.0.3",
     "ws": "^8.21.0"
   },
   "devDependencies": {

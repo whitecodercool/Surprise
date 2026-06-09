@@ -18,6 +18,7 @@ const initialState: BrowserState = {
   tabSearchOpen: false,
   settingsOpen: false,
   settingsTab: 'ghoststack',
+  darkRoomOpen: false,
   ghoststackStatus: null,
   uiSettings: {
     theme: 'system',
@@ -76,6 +77,7 @@ function browserReducer(state: BrowserState, action: BrowserAction): BrowserStat
     case 'TOGGLE_TAB_SEARCH': return { ...state, tabSearchOpen: !state.tabSearchOpen, tabSearchQuery: '' }
     case 'TOGGLE_SETTINGS': return { ...state, settingsOpen: !state.settingsOpen }
     case 'SET_SETTINGS_TAB': return { ...state, settingsTab: action.payload }
+    case 'TOGGLE_DARK_ROOM': return { ...state, darkRoomOpen: !state.darkRoomOpen }
     case 'SET_GHOSTSTACK_STATUS': return { ...state, ghoststackStatus: action.payload }
     case 'SET_UI_SETTINGS': return { ...state, uiSettings: { ...state.uiSettings, ...action.payload } }
     case 'SET_PERFORMANCE_METRICS': return { ...state, performanceMetrics: { ...state.performanceMetrics, ...action.payload } }

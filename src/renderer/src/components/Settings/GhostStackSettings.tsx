@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import StatusCard from '../GhostStack/StatusCard'
 import StatsBadge from '../GhostStack/StatsBadge'
 import ToggleRow from '../GhostStack/ToggleRow'
+import { DiagnosticsLogList } from '../GhostStack/DiagnosticsLogList'
 
 export default function GhostStackSettings() {
   const [status, setStatus] = useState<any>(null)
@@ -75,6 +76,8 @@ export default function GhostStackSettings() {
           <option value="direct">Direct (No Bypass)</option>
         </select>
       </StatusCard>
+
+      <DiagnosticsLogList />
     </div>
   )
 }

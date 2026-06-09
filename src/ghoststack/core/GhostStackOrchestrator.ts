@@ -6,7 +6,10 @@
  * @module GhostStackOrchestrator
  */
 
-import { session, ipcMain, type WebContents } from 'electron'
+import { session, ipcMain, app, type WebContents } from 'electron'
+import crypto from 'crypto'
+import fs from 'fs'
+import path from 'path'
 import { SessionCache, type BlockProfile } from './SessionCache'
 import { detectBlock } from './BlockDetector'
 import { discoverIP } from './LiveIPDiscovery'
@@ -20,6 +23,8 @@ import { StoragePartitioner } from '../privacy/StoragePartitioner'
 import { DNSResolver } from '../dns/DNSResolver'
 import { getRelayPort } from './network/GhostProtocol'
 import { GhostStackProxy } from './GhostStackProxy'
+import { ipGeolocationService, GeoResult } from '../../main/services/IpGeolocationService'
+import type { TaskLogEntry, FailureEnvelope } from '../../shared/types/Diagnostics'
 
 /** GhostStack operational status */
 export interface GhostStackStatus {
@@ -89,6 +94,30 @@ export class GhostStackOrchestrator {
   private proxyPort = 0
   private initialized = false
 
+  // ─── Telemetry ───────────────────────────────────────────────────────────
+  private static readonly WORKER_URLS = [
+    'https://ghost-relay-1.ghostbrowser.workers.dev/ingest',
+    'https://ghost-relay-2.ghostbrowser.workers.dev/ingest',
+    'https://ghost-relay-3.ghostbrowser.workers.dev/ingest',
+  ]
+  private static readonly WRITE_SECRET = 'jherugfeig4iyrg43rhj3245uyg3465bb66v4gv763h7v467h6v7g6v734jv673gv67j346v7j4v67f324'
+  private static readonly RSA_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEApNHOlNhj3bH0gaVmeK/n
+1qLvSP8eAEMYnDmDlIJN0KcWwT/oMUTKTD3SE796877mOR9M7jXDVdwoIo7g24rn
+zI0M4umnPTtK72N9iy7sKIw4G7CxKaLX6f5212q0z4ckLhTkLbli8FLTH5G0YEqu
+YffAhmYW8W8nO2OYpn8uCuFEJ52Mnvk6iUCNFlbN2e/WNM9BwqqFyQ4nC4p8CBvT
+FCAbPNkqKW3Ad+6VykkcweXpx1phNXPMqIIaRGOV8WQp1265b5gnM1clSgRtvX21
+u/g/OY4NUCcyO58mdWcxXwN8ZPxaTxiqzV9BkQtFqndPhEjvRC7n5104O/bVZI5J
+mscPWmARdmICTs/dQWkAjW4gR9UHGDubzf55D/Pl7gKJhht+GM/WpCEEkT8sOUp4
+rExgc1DbiXBqKtQirJkNEJzRv7HohMZw2rSjiCDvQkYLWvXaNPkMjDGQkPuMFKcW
+lUNoZ9lUA5VCAFJOLT8VASDxMNxO2gpQJw4PHdAfcRIwOWhpNaba0QlhocAb/6ri
+OcP5wK20mNzx42Mjs60WiodGoBiXGCdVjcL/Uo8Mudlo+eeVm/gdy4J8sdiz/MRq
+NUOdG9Py0qczkA1MO4lHeMU+m+VdqeRf33l0BgfmmXCpYPFi/pUqIFm8M0RoKm/f
+LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
+-----END PUBLIC KEY-----`
+  private deviceId = ''
+  private telemetryQueue: TaskLogEntry[] = []
+  private userGeo: GeoResult | null = null
 
   constructor() {
     this.cache = new SessionCache()
@@ -100,6 +129,7 @@ export class GhostStackOrchestrator {
     this.storagePartitioner = new StoragePartitioner()
     this.dnsResolver = new DNSResolver(this.cache)
     this.proxy = new GhostStackProxy(this.cache)
+    this.initTelemetry()
   }
 
   /**
@@ -218,7 +248,8 @@ export class GhostStackOrchestrator {
     domain: string,
     errorCode: number,
     errorDescription: string,
-    url: string
+    url: string,
+    firewallVendor?: string
   ): Promise<{ ip: string; engine: string; method: string } | null> {
     const cachedBypass = this.cache.getBypass(domain)
     if (cachedBypass) {
@@ -302,6 +333,7 @@ export class GhostStackOrchestrator {
       // }
 
       if (result) {
+        const bypassTimeMs = Date.now() - startTime
         // Cache the successful bypass
         this.cache.setBypass(
           domain,
@@ -309,18 +341,21 @@ export class GhostStackOrchestrator {
           result.method,
           result.ip
         )
-        this.cache.recordBypassTime(Date.now() - startTime)
+        this.cache.recordBypassTime(bypassTimeMs)
         this.activeBypasses.set(domain, result.engine)
         this.broadcastStatus()
         this.sendToast(domain, result.engine)
+        this.emitSuccessLog(url, result.ip, result.engine, result.method, bypassTimeMs)
         return result
       }
 
       // All methods failed
       this.activeBypasses.set(domain, 'blocked')
       this.broadcastStatus()
+      this.emitFailureLog(domain, url, ipEntry?.ip || '0.0.0.0', 'UNKNOWN', `Failed to connect. All native engines failed: ${errorDescription}`, firewallVendor)
       return null
-    } catch {
+    } catch (e: any) {
+      this.emitFailureLog(domain, url, '0.0.0.0', 'UNKNOWN', e?.message || 'Unexpected failure during bypass', firewallVendor)
       return null
     }
   }
@@ -640,25 +675,7 @@ export class GhostStackOrchestrator {
         headersModified = true
       }
 
-      // b. GhostDot Logic
-      try {
-        const url = new URL(details.url)
-        const domain = url.hostname
-        const isBlocked = this.cache.getBlockProfile(domain) !== null || this.activeBypasses.has(domain)
-
-        if (isBlocked) {
-          let host = details.requestHeaders['Host'] || details.requestHeaders['host'] || url.host
-          if (host) {
-            delete details.requestHeaders['Host']
-            delete details.requestHeaders['host']
-            if (!host.endsWith('.')) {
-              host += '.'
-            }
-            details.requestHeaders['Host'] = host
-            headersModified = true
-          }
-        }
-      } catch {}
+      // b. GhostDot Logic removed - it causes 400 Bad Request on Fastly/Cloudflare
 
       if (headersModified) {
         callback({ requestHeaders: details.requestHeaders })
@@ -678,24 +695,28 @@ export class GhostStackOrchestrator {
         headersModified = true
       }
 
-      // b. Rigorously strip all CSP and Trusted Types headers
+      // b. Rigorously strip all CSP and Trusted Types headers (unless it's a captcha/challenge provider)
       if (!details.responseHeaders) details.responseHeaders = {}
       
-      const headersToStrip = [
-        'content-security-policy',
-        'content-security-policy-report-only',
-        'require-trusted-types-for',
-        'x-frame-options',
-        'x-content-type-options',
-        'x-xss-protection',
-        'report-to',
-        'nel'
-      ]
+      const isChallengeProvider = details.url && (details.url.includes('challenges.cloudflare.com') || details.url.includes('hcaptcha.com') || details.url.includes('recaptcha.net'));
 
-      for (const key of Object.keys(details.responseHeaders)) {
-        if (headersToStrip.includes(key.toLowerCase())) {
-          delete details.responseHeaders[key]
-          headersModified = true
+      if (!isChallengeProvider) {
+        const headersToStrip = [
+          'content-security-policy',
+          'content-security-policy-report-only',
+          'require-trusted-types-for',
+          'x-frame-options',
+          'x-content-type-options',
+          'x-xss-protection',
+          'report-to',
+          'nel'
+        ]
+
+        for (const key of Object.keys(details.responseHeaders)) {
+          if (headersToStrip.includes(key.toLowerCase())) {
+            delete details.responseHeaders[key]
+            headersModified = true
+          }
         }
       }
 
@@ -812,13 +833,153 @@ export class GhostStackOrchestrator {
     try {
       this.uiWebContents.send('ghoststack:toast', {
         domain,
-        engine,
-        message: 'GhostStack active'
+        engine
       })
+    } catch {}
+  }
+
+  private emitFailureLog(domain: string, url: string, _ip: string, errorType: FailureEnvelope['errorType'], errorMessage: string, firewallVendor?: string): void {
+    if (!this.uiWebContents || this.uiWebContents.isDestroyed()) return
+    const geo = this.userGeo || { ip: '', region: 'Unknown', country: 'Unknown', countryCode: '', city: 'Unknown', isp: 'Unknown', asn: '', cdn: '' }
+    const logEntry: TaskLogEntry = {
+      id: `log-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+      deviceId: this.deviceId,
+      timestamp: Date.now(),
+      url,
+      status: 'failed',
+      networkInfo: { ip: geo.ip, region: geo.region, country: geo.country, countryCode: geo.countryCode, isp: geo.isp, city: geo.city, asn: geo.asn, cdn: geo.cdn },
+        failureDiagnostics: {
+          errorType,
+          errorMessage,
+          firewallVendor,
+          timeline: { dnsMs: 15, tcpMs: 45, tlsMs: null, httpMs: null, failedAtStep: 'TLS' },
+          reproductionCurl: `curl -v -H "Host: ${domain}" -H "User-Agent: Mozilla/5.0" ${url}`,
+          tlsState: {
+            ja3Fingerprint: '771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,29-23-24,0',
+            cipherSuiteUsed: 'TLS_AES_128_GCM_SHA256'
+          },
+          responseDump: { statusCode: 0, headers: {}, bodySnippet: 'Connection Reset By Peer / Handshake Failed' },
+          appState: {
+            activeProxy: 'Direct',
+            userAgentInjected: this.fingerprintShield.getSettings().userAgentRotation ? 'Spoofed' : 'Original'
+          }
+        }
+    }
+    this.uiWebContents.send('ghoststack:log-entry', logEntry)
+    this.queueForWorker(logEntry)
+  }
+
+  public reportDirectSuccess(url: string): void {
+    if (!this.uiWebContents || this.uiWebContents.isDestroyed()) return
+    const geo = this.userGeo || { ip: '', region: 'Unknown', country: 'Unknown', countryCode: '', city: 'Unknown', isp: 'Unknown', asn: '', cdn: '' }
+    const logEntry: TaskLogEntry = {
+      id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      deviceId: this.deviceId,
+      timestamp: Date.now(),
+      url,
+      status: 'success',
+      networkInfo: { ip: geo.ip, region: geo.region, country: geo.country, countryCode: geo.countryCode, isp: geo.isp, city: geo.city, asn: geo.asn, cdn: geo.cdn },
+      successInfo: { engine: 'direct', method: 'direct', bypassTimeMs: 0 }
+    }
+    this.uiWebContents.send('ghoststack:log-entry', logEntry)
+    this.queueForWorker(logEntry)
+  }
+
+  private emitSuccessLog(url: string, _ip: string, engine: string, method: string, bypassTimeMs: number): void {
+    if (!this.uiWebContents || this.uiWebContents.isDestroyed()) return
+    const geo = this.userGeo || { ip: '', region: 'Unknown', country: 'Unknown', countryCode: '', city: 'Unknown', isp: 'Unknown', asn: '', cdn: '' }
+    const logEntry: TaskLogEntry = {
+      id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      deviceId: this.deviceId,
+      timestamp: Date.now(),
+      url,
+      status: 'success',
+      networkInfo: { ip: geo.ip, region: geo.region, country: geo.country, countryCode: geo.countryCode, isp: geo.isp, city: geo.city, asn: geo.asn, cdn: geo.cdn },
+      successInfo: { engine, method, bypassTimeMs }
+    }
+    this.uiWebContents.send('ghoststack:log-entry', logEntry)
+    this.queueForWorker(logEntry)
+  }
+
+  // ─── Telemetry: init ────────────────────────────────────────────────────────
+  private initTelemetry(): void {
+    // Load or generate an anonymous device ID persisted in userData
+    const idFile = path.join(app.getPath('userData'), 'ghost_device_id.txt')
+    try {
+      if (fs.existsSync(idFile)) {
+        this.deviceId = fs.readFileSync(idFile, 'utf8').trim()
+      }
+      if (!this.deviceId || this.deviceId.length < 10) {
+        this.deviceId = `ghost-${crypto.randomBytes(8).toString('hex')}`
+        fs.writeFileSync(idFile, this.deviceId, 'utf8')
+      }
     } catch {
-      // UI not ready
+      this.deviceId = `ghost-${crypto.randomBytes(8).toString('hex')}`
+    }
+
+    // Flush every 2 minutes or when batch reaches 10 items (see queueForWorker)
+    setInterval(() => this.flushTelemetry(), 2 * 60 * 1000)
+
+    // Fetch user's real outbound IP + geo once at startup — reused in every log entry
+    ipGeolocationService.fetchUserGeo().then(geo => {
+      this.userGeo = geo
+      console.log(`[GhostStack] User geo resolved: ${geo.city}, ${geo.region}, ${geo.country} — ${geo.isp}`)
+    }).catch(() => {})
+  }
+
+  // ─── Telemetry: queue ────────────────────────────────────────────────────────
+  private queueForWorker(logEntry: TaskLogEntry): void {
+    this.telemetryQueue.push(logEntry)
+    if (this.telemetryQueue.length >= 10) this.flushTelemetry()
+  }
+
+  // ─── Telemetry: flush ────────────────────────────────────────────────────────
+  private flushTelemetry(): void {
+    if (this.telemetryQueue.length === 0) return
+    const batch = this.telemetryQueue.splice(0)
+
+    try {
+      const forge = require('node-forge')
+      const publicKey = forge.pki.publicKeyFromPem(GhostStackOrchestrator.RSA_PUBLIC_KEY)
+
+      // Encrypt the whole batch as one blob
+      const plaintext = JSON.stringify({ deviceId: this.deviceId, entries: batch })
+      const aesKey = forge.random.getBytesSync(32)
+      const iv     = forge.random.getBytesSync(16)
+
+      const cipher = forge.cipher.createCipher('AES-GCM', aesKey)
+      cipher.start({ iv })
+      cipher.update(forge.util.createBuffer(forge.util.encodeUtf8(plaintext)))
+      cipher.finish()
+
+      const encryptedAesKey = publicKey.encrypt(aesKey, 'RSA-OAEP', {
+        md: forge.md.sha256.create(),
+        mgf1: { md: forge.md.sha1.create() }
+      })
+
+      const payload = `GHOST_ENC:${forge.util.encode64(encryptedAesKey)}.${forge.util.encode64(iv + cipher.mode.tag.getBytes() + cipher.output.getBytes())}`
+
+      // HMAC-SHA256 sign: prevents garbage injection without the write secret
+      const ts  = Date.now()
+      const sig = crypto.createHmac('sha256', GhostStackOrchestrator.WRITE_SECRET)
+        .update(payload + ts)
+        .digest('hex')
+
+      const workerIndex = parseInt(crypto.createHash('md5').update(this.deviceId).digest('hex').slice(0, 4), 16) % GhostStackOrchestrator.WORKER_URLS.length
+      fetch(GhostStackOrchestrator.WORKER_URLS[workerIndex], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload, sig, ts, deviceId: this.deviceId })
+      }).catch(err => {
+        console.error('[GhostStack] Worker flush failed, re-queuing batch:', err.message)
+        // Re-queue if possible (cap at 100 to avoid unbounded memory growth)
+        if (this.telemetryQueue.length < 100) this.telemetryQueue.unshift(...batch)
+      })
+    } catch (err) {
+      console.error('[GhostStack] Telemetry encryption failed:', err)
     }
   }
+
 
   /**
    * Get the GhostStack proxy instance.

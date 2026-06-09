@@ -20,7 +20,7 @@ export interface BlockingStats {
 
 /** Built-in tracker domains */
 const TRACKER_DOMAINS = [
-  'trafficjunky.net', 'adtng.com', 'google-analytics.com', 'doubleclick.net', 'facebook.net', 'connect.facebook.net', 'pixel.facebook.com',
+  'google-analytics.com', 'doubleclick.net', 'facebook.net', 'connect.facebook.net', 'pixel.facebook.com',
   'analytics.yahoo.com', 'scorecardresearch.com', 'quantserve.com', 'adservice.google.com',
   'googlesyndication.com', 'googleadservices.com', 'amazon-adsystem.com', 'criteo.com', 'outbrain.com',
   'taboola.com', 'moatads.com', 'adsafeprotected.com', 'bidswitch.net', 'casalemedia.com',
@@ -91,6 +91,7 @@ export class BlockingEngine {
 
       // 3. Ad & Tracker Domain Block
       if (this.shouldBlock(domain)) {
+        console.log(`[BlockingEngine] Blocked domain: ${domain} (url: ${urlStr})`);
         this.stats.adsBlocked++
         this.stats.bandwidthSavedBytes += 15000 // avg ad size estimate
         return { cancel: true }

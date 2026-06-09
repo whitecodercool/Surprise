@@ -4,6 +4,17 @@ import WorkspaceIcon from './WorkspaceIcon'
 import SidebarSection from './SidebarSection'
 import SidebarTab from './SidebarTab'
 
+// Dark Room icon — hexagon with ghost silhouette
+function DarkRoomIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M7 1.5L12 4.25v5.5L7 12.5 2 9.75v-5.5L7 1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+      <circle cx="7" cy="6.5" r="1.5" fill="currentColor" opacity="0.7"/>
+      <path d="M4.5 10c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
 export default function Sidebar() {
   const {
     state,
@@ -18,7 +29,7 @@ export default function Sidebar() {
     restoreClosedTab
   } = useBrowser()
 
-  const { tabs, activeTabId, sidebarCollapsed, recentlyClosed, tabSearchQuery, tabSearchOpen } = state
+  const { tabs, activeTabId, sidebarCollapsed, recentlyClosed, tabSearchQuery, tabSearchOpen, darkRoomOpen } = state
   const searchRef = useRef<HTMLInputElement>(null)
   const [, setDragIdx] = useState<number | null>(null)
 
@@ -433,8 +444,18 @@ export default function Sidebar() {
       </div>
 
       {/* Bottom bar */}
-      <div className="px-2.5 py-2" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-        <button 
+      <div className="px-2.5 py-2" style={{ borderTop: '1px solid var(--color-border-subtle)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <button
+          onClick={() => dispatch({ type: 'TOGGLE_DARK_ROOM' })}
+          className="no-drag sidebar-tab flex items-center gap-2.5 w-full px-2.5 py-[7px] rounded-[9px] cursor-pointer"
+          style={darkRoomOpen ? { background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' } : {}}
+          title="Dark Room — Anonymous E2E chat via Tor"
+        >
+          <DarkRoomIcon />
+          <span style={{ fontSize: 12, color: darkRoomOpen ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontWeight: 400 }}>Dark Room</span>
+          {darkRoomOpen && <span className="ml-auto" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)', display: 'inline-block' }} />}
+        </button>
+        <button
           onClick={() => dispatch({ type: 'TOGGLE_SETTINGS' })}
           className="no-drag sidebar-tab flex items-center gap-2.5 w-full px-2.5 py-[7px] rounded-[9px] cursor-pointer"
         >

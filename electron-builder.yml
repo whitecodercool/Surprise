@@ -11,6 +11,16 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+
+# Bundle Tor binary and Dark Room server config — unpacked so the OS can read/execute them
+extraResources:
+  - from: resources/tor
+    to: tor
+    filter:
+      - '**/*'
+  - from: resources/darkroom.json
+    to: darkroom.json
+
 win:
   executableName: flux-browser
 nsis:

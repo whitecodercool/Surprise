@@ -211,29 +211,35 @@ export class GhostStackProxy {
           serverSocket.write(head)
         }
 
-        // Apply DPI Evasion unconditionally to ALL traffic!
-        // This fragments the TLS ClientHello so DPI systems cannot read the SNI domain.
-        console.log(`[GhostStack Proxy] ${domain} -> Applying Native SplitCast (1B+50ms)`)
-        let isFirstChunk = true
+        const isBlocked = this.cache.getBlockProfile(domain) !== null || this.cache.getBypass(domain) !== null;
+
+        if (isBlocked) {
+          console.log(`[GhostStack Proxy] ${domain} -> Applying Native SplitCast (1B+50ms)`);
+          let isFirstChunk = true;
+          
+          clientSocket.on('data', (chunk) => {
+            if (isFirstChunk && chunk.length > 10 && chunk[0] === 0x16) {
+              isFirstChunk = false;
+              const splitPoint = 1;
+              const delay = 50;
+              
+              const chunk1 = chunk.subarray(0, splitPoint);
+              const chunk2 = chunk.subarray(splitPoint);
+              
+              serverSocket.write(chunk1);
+              setTimeout(() => {
+                if (!serverSocket.destroyed) serverSocket.write(chunk2);
+              }, delay);
+            } else {
+              if (!serverSocket.destroyed) serverSocket.write(chunk);
+            }
+          });
+        } else {
+          // Direct transparent pipe for unblocked domains (e.g. video CDNs)
+          clientSocket.pipe(serverSocket);
+        }
         
-        clientSocket.on('data', (chunk) => {
-          if (isFirstChunk && chunk.length > 10 && chunk[0] === 0x16) { // 0x16 is TLS Handshake
-            isFirstChunk = false
-            const splitPoint = 1
-            const delay = 50
-            
-            const chunk1 = chunk.subarray(0, splitPoint)
-            const chunk2 = chunk.subarray(splitPoint)
-            
-            serverSocket.write(chunk1)
-            setTimeout(() => {
-              if (!serverSocket.destroyed) serverSocket.write(chunk2)
-            }, delay)
-          } else {
-            if (!serverSocket.destroyed) serverSocket.write(chunk)
-          }
-        })
-        serverSocket.pipe(clientSocket)
+        serverSocket.pipe(clientSocket);
 
         const cleanup = () => {
           this.activeTunnels = Math.max(0, this.activeTunnels - 1)
