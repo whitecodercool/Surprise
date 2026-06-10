@@ -44,7 +44,8 @@ export class TabManager {
         preload: require('path').join(__dirname, '../preload/tab.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        webSecurity: true
+        webSecurity: true,
+        partition: `in-memory-tab-${id}`
       }
     })
 
