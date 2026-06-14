@@ -18,8 +18,6 @@ extraResources:
     to: tor
     filter:
       - '**/*'
-  - from: resources/darkroom.json
-    to: darkroom.json
 
 win:
   executableName: flux-browser

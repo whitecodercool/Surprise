@@ -110,6 +110,21 @@ let blockedBaseDomain = ''
 // Handles ALL sub-resources (CSS, JS, images, VIDEO)
 // Localhost traffic bypasses Sophos entirely.
 // ═══════════════════════════════════════════════════
+function isPublicUrl(raw: string): boolean {
+  let url: URL
+  try { url = new URL(raw) } catch { return false }
+  if (url.protocol !== 'https:') return false
+  const h = url.hostname
+  if (h === 'localhost' || h === '127.0.0.1' || h === '::1') return false
+  if (
+    h.startsWith('10.')       ||
+    h.startsWith('192.168.')  ||
+    h.startsWith('169.254.')  ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(h)
+  ) return false
+  return true
+}
+
 function startLocalRelay(): Promise<number> {
   return new Promise((resolve) => {
     const server = http.createServer(async (req, res) => {
@@ -118,7 +133,7 @@ function startLocalRelay(): Promise<number> {
         let targetUrl = reqUrl.searchParams.get('u')
 
         if (reqUrl.pathname === '/log') {
-          const msg = reqUrl.searchParams.get('msg')
+          const msg = (reqUrl.searchParams.get('msg') || '').replace(/[\x00-\x1f\x7f]/g, '')
           console.log(`[GhostStack/FrontendLog] ${msg}`)
           res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' })
           res.end('ok')
@@ -147,6 +162,12 @@ function startLocalRelay(): Promise<number> {
             res.end('Missing u param')
             return
           }
+        }
+
+        if (!isPublicUrl(targetUrl)) {
+          res.writeHead(403)
+          res.end('Forbidden')
+          return
         }
 
         // CORS headers for cross-origin requests from ghost:// page

@@ -7,7 +7,6 @@ import TabArea from './components/TabArea/TabArea'
 import CommandPalette from './components/CommandPalette/CommandPalette'
 import SplashScreen from './components/SplashScreen/SplashScreen'
 import SettingsPage from './components/Settings/SettingsPage'
-import { WalletApproval } from './components/Wallet/WalletApproval'
 import DarkRoomPanel from './components/DarkRoom/DarkRoomPanel'
 
 function BrowserShell() {
@@ -79,9 +78,6 @@ function BrowserShell() {
       
       {/* Settings Overlay */}
       <SettingsPage />
-
-      {/* Wallet Approval Overlay */}
-      <WalletApproval />
 
       {/* Dark Room Panel */}
       {state.darkRoomOpen && (

@@ -37,7 +37,7 @@ export class ECHHandler {
    * @param options - ECH options
    * @returns Connection result
    */
-  async connect(ip: string, domain: string, options: ECHOptions): Promise<ECHResult> {
+  async connect(ip: string, _domain: string, options: ECHOptions): Promise<ECHResult> {
     const tls = require('tls')
 
     return new Promise((resolve) => {
@@ -69,9 +69,10 @@ export class ECHHandler {
               const cert = socket.getPeerCertificate()
               const negotiatedProtocol = socket.alpnProtocol || 'http/1.1'
 
-              // Check if the certificate covers our real domain
-              // This works because CDN servers serve different certs based on the encrypted inner SNI
-              if (cert && this.certMatchesDomain(cert, domain)) {
+              // Check if the certificate covers the CDN hostname (Outer SNI)
+              // We cannot check the real domain here because Node.js tls doesn't support
+              // sending the inner encrypted SNI payload natively. Chromium will handle real ECH.
+              if (cert && this.certMatchesDomain(cert, options.cdnHostname)) {
                 // Apply traffic shaping if provided
                 if (options.trafficShaping) {
                   options.trafficShaping.shapeSocket(socket)
@@ -83,10 +84,11 @@ export class ECHHandler {
                   protocol: negotiatedProtocol
                 })
               } else {
-                // Certificate doesn't match — the CDN might not serve this domain
-                // Try with real SNI as fallback
+                // CDN cert doesn't match — ECH path unavailable for this domain.
+                // Do NOT fall back to real-SNI here; that would expose the blocked
+                // domain in plaintext to the firewall and defeat ECH entirely.
                 socket.destroy()
-                this.connectWithRealSNI(ip, domain, options).then(resolve)
+                resolve({ success: false, protocol: 'none', error: 'CDN certificate mismatch' })
               }
             } catch {
               socket.destroy()
@@ -108,72 +110,6 @@ export class ECHHandler {
       } catch (err) {
         clearTimeout(timer)
         resolve({ success: false, protocol: 'none', error: 'ECH setup error' })
-      }
-    })
-  }
-
-  /**
-   * Fallback: connect with real domain as SNI but using TLS 1.3.
-   * Some firewalls may still allow TLS 1.3 connections with real SNI
-   * if ECH negotiation signals are present.
-   * @param ip - Target IP
-   * @param domain - Real domain
-   * @param options - ECH options
-   * @returns Connection result
-   */
-  private async connectWithRealSNI(
-    ip: string,
-    domain: string,
-    options: ECHOptions
-  ): Promise<ECHResult> {
-    const tls = require('tls')
-
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        resolve({ success: false, protocol: 'none', error: 'Real SNI timeout' })
-      }, 5000)
-
-      try {
-        const socket = tls.connect(
-          {
-            host: ip,
-            port: 443,
-            servername: domain,
-            minVersion: 'TLSv1.3',
-            maxVersion: 'TLSv1.3',
-            rejectUnauthorized: false,
-            timeout: 5000,
-            ALPNProtocols: ['h2', 'http/1.1']
-          },
-          () => {
-            clearTimeout(timer)
-            const cert = socket.getPeerCertificate()
-            if (cert && this.certMatchesDomain(cert, domain)) {
-              if (options.trafficShaping) {
-                options.trafficShaping.shapeSocket(socket)
-              }
-              socket.destroy()
-              resolve({ success: true, protocol: socket.alpnProtocol || 'http/1.1' })
-            } else {
-              socket.destroy()
-              resolve({ success: false, protocol: 'none', error: 'Certificate mismatch' })
-            }
-          }
-        )
-
-        socket.on('error', () => {
-          clearTimeout(timer)
-          resolve({ success: false, protocol: 'none', error: 'Socket error' })
-        })
-
-        socket.on('timeout', () => {
-          clearTimeout(timer)
-          socket.destroy()
-          resolve({ success: false, protocol: 'none', error: 'Socket timeout' })
-        })
-      } catch {
-        clearTimeout(timer)
-        resolve({ success: false, protocol: 'none', error: 'Connection setup error' })
       }
     })
   }

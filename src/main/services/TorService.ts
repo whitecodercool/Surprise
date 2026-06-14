@@ -20,24 +20,44 @@ class TorService {
 
   // ── Find bundled or system tor binary ─────────────────────────────────────
   findTorBinary(): string | null {
+    const isWin    = process.platform === 'win32'
+    const isMac    = process.platform === 'darwin'
+    const binName  = isWin ? 'tor.exe' : 'tor'
     const candidates: string[] = []
 
     if (!is.dev) {
-      // Production: bundled with the app via electron-builder extraResources
-      candidates.push(path.join(process.resourcesPath, 'tor', 'tor.exe'))
+      // Production: bundled inside the app package via electron-builder extraResources
+      candidates.push(path.join(process.resourcesPath, 'tor', binName))
     }
 
-    // Development / fallback: Tor Browser installation on Windows
-    const localAppData = process.env.LOCALAPPDATA || ''
-    const appData      = process.env.APPDATA || ''
+    // Dev / fallback paths per platform
+    if (isWin) {
+      const localAppData = process.env.LOCALAPPDATA || ''
+      const appData      = process.env.APPDATA || ''
+      candidates.push(
+        path.join(localAppData, 'Tor Browser', 'Browser', 'TorBrowser', 'Tor', 'tor.exe'),
+        path.join(appData,      'Tor Browser', 'Browser', 'TorBrowser', 'Tor', 'tor.exe'),
+        'C:\\Program Files\\Tor Browser\\Browser\\TorBrowser\\Tor\\tor.exe',
+      )
+    } else if (isMac) {
+      candidates.push(
+        '/Applications/Tor Browser.app/Contents/MacOS/Tor/tor',
+        '/usr/local/bin/tor',
+        '/opt/homebrew/bin/tor',
+      )
+    } else {
+      // Linux
+      candidates.push(
+        '/usr/bin/tor',
+        '/usr/local/bin/tor',
+        '/snap/bin/tor',
+      )
+    }
+
+    // Dev fallback: binary placed next to app source
     candidates.push(
-      path.join(localAppData, 'Tor Browser', 'Browser', 'TorBrowser', 'Tor', 'tor.exe'),
-      path.join(appData,      'Tor Browser', 'Browser', 'TorBrowser', 'Tor', 'tor.exe'),
-      'C:\\Program Files\\Tor Browser\\Browser\\TorBrowser\\Tor\\tor.exe',
-      'C:\\Users\\Public\\Desktop\\Tor Browser\\Browser\\TorBrowser\\Tor\\tor.exe',
-      // Also check alongside the app (developer placed it here)
-      path.join(app.getAppPath(), '..', 'resources', 'tor', 'tor.exe'),
-      path.join(process.cwd(), 'resources', 'tor', 'tor.exe'),
+      path.join(app.getAppPath(), '..', 'resources', 'tor', binName),
+      path.join(process.cwd(), 'resources', 'tor', binName),
     )
 
     for (const c of candidates) {

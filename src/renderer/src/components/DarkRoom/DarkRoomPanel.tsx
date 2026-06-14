@@ -83,7 +83,6 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
   const [torStatus, setTorStatus]     = useState('Initializing...')
   const [torError, setTorError]       = useState('')
 
-  const [onionInput, setOnionInput]   = useState('')
   const [onionAddr, setOnionAddr]     = useState('')
 
   // Load (or generate) the user's persistent identity once (lazy init avoids re-running on every render)
@@ -114,15 +113,10 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
       const cfg = await window.api.darkroomGetConfig()
       if (cancelled) return
 
-      if (!cfg.onionAddr) {
-        setPhase('setup-onion')
-        return
-      }
-
-      setOnionAddr(cfg.onionAddr)
+      if (cfg.onionAddr) setOnionAddr(cfg.onionAddr)
 
       if (!cfg.torFound) {
-        setTorError('tor.exe not found. Install Tor Browser and restart Flux.')
+        setTorError('Tor not found. Try reinstalling Flux or contact support.')
         setPhase('connecting-tor')
         return
       }
@@ -159,7 +153,7 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
 
       if (!result.ok) {
         if (result.error === 'TOR_NOT_FOUND') {
-          setTorError('tor.exe not found. Install Tor Browser and restart Flux.')
+          setTorError('Tor not found. Try reinstalling Flux or contact support.')
         } else if (result.error === 'NO_ONION_ADDR') {
           setPhase('setup-onion')
         } else {
@@ -180,26 +174,6 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
   useEffect(() => {
     msgEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
-
-  // ── Save .onion address ──────────────────────────────────────────────────
-  const handleSaveOnion = useCallback(async () => {
-    const addr = onionInput.trim().replace(/^https?:\/\//i, '')
-    if (!addr.endsWith('.onion')) {
-      return
-    }
-    await window.api.darkroomSetOnionAddr(addr)
-    setOnionAddr(addr)
-    setPhase('connecting-tor')
-    setTorStatus('Starting Tor...')
-
-    const result = await window.api.darkroomStart()
-    if (!result.ok) {
-      setTorError(`Error: ${result.error}`)
-      return
-    }
-    proxyPort.current = result.port ?? 0
-    setPhase('lobby')
-  }, [onionInput])
 
   // ── Create room ───────────────────────────────────────────────────────────
   const handleCreate = useCallback(() => {
@@ -386,22 +360,11 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
         {phase === 'setup-onion' && (
           <div style={S.centered}>
             <div style={S.setupBox}>
-              <div style={S.setupTitle}>CONFIGURE SERVER</div>
+              <div style={S.setupTitle}>SERVER UNAVAILABLE</div>
               <div style={S.setupDesc}>
-                Paste your deployed Dark Room .onion address.<br/>
-                Deploy <code style={{ color: 'var(--color-accent)' }}>darkroom-server/</code> to Fly.io first.
+                Dark Room server configuration is missing.<br/>
+                Please reinstall Flux to restore it.
               </div>
-              <input
-                style={S.input}
-                placeholder="abc123...xyz.onion"
-                value={onionInput}
-                onChange={e => setOnionInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSaveOnion()}
-                spellCheck={false}
-              />
-              <button style={S.btnPrimary} onClick={handleSaveOnion}>
-                Connect
-              </button>
             </div>
           </div>
         )}
@@ -418,18 +381,6 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
                   <div style={{ color: 'var(--color-error, #ff4466)', marginBottom: 12, fontSize: 13 }}>
                     {torError}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-                    Install <strong>Tor Browser</strong> from torproject.org,<br/>
-                    then restart Flux. No manual configuration needed.
-                  </div>
-                  <a
-                    href="https://www.torproject.org/download/"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ ...S.btnPrimary, display: 'inline-block', marginTop: 16, textDecoration: 'none', textAlign: 'center' }}
-                  >
-                    Download Tor Browser
-                  </a>
                 </>
               ) : (
                 <>

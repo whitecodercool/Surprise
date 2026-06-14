@@ -9,43 +9,86 @@
 
 import * as net from 'net'
 import { app } from 'electron'
-import { is } from '@electron-toolkit/utils'
+import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
 
-const CONFIG_PATH = () => path.join(app.getPath('userData'), 'darkroom_config.json')
+// Remote endpoint that returns { onionAddr: "xxx.onion" }
+// Deploy a Cloudflare Worker (or any HTTPS endpoint) that serves this JSON.
+// The .onion address is never bundled in the app — fetched at runtime and cached locally.
+const DARKROOM_CONFIG_URL = 'https://darkroom.ghostbrowser.workers.dev/config'
+
+const CONFIG_PATH  = () => path.join(app.getPath('userData'), 'darkroom_config.json')
+const HMAC_KEY_PATH = () => path.join(app.getPath('userData'), 'darkroom_hmac.key')
 
 interface DarkRoomConfig {
   onionAddr: string
+  mac: string
 }
 
-export function saveOnionAddr(addr: string): void {
-  const cfg: DarkRoomConfig = { onionAddr: addr.trim() }
-  fs.writeFileSync(CONFIG_PATH(), JSON.stringify(cfg), 'utf-8')
-}
-
-function loadBundledOnionAddr(): string {
+function getOrCreateHmacKey(): Buffer {
+  const p = HMAC_KEY_PATH()
   try {
-    const bundledPath = is.dev
-      ? path.join(process.cwd(), 'resources', 'darkroom.json')
-      : path.join(process.resourcesPath, 'darkroom.json')
-    const raw = fs.readFileSync(bundledPath, 'utf-8')
+    const key = fs.readFileSync(p)
+    if (key.length === 32) return key
+  } catch {}
+  const key = crypto.randomBytes(32)
+  fs.writeFileSync(p, key)
+  return key
+}
+
+function computeMac(addr: string, key: Buffer): string {
+  return crypto.createHmac('sha256', key).update(addr, 'utf-8').digest('hex')
+}
+
+function saveCachedOnionAddr(addr: string): void {
+  const key = getOrCreateHmacKey()
+  const mac = computeMac(addr.trim(), key)
+  fs.writeFileSync(CONFIG_PATH(), JSON.stringify({ onionAddr: addr.trim(), mac }), 'utf-8')
+}
+
+function loadCachedOnionAddr(): string {
+  try {
+    const raw = fs.readFileSync(CONFIG_PATH(), 'utf-8')
     const cfg: DarkRoomConfig = JSON.parse(raw)
-    return cfg.onionAddr?.trim() || ''
+    const addr = cfg.onionAddr?.trim()
+    if (!addr || !cfg.mac) return ''
+    const key = getOrCreateHmacKey()
+    const expected = Buffer.from(computeMac(addr, key), 'hex')
+    const actual   = Buffer.from(cfg.mac, 'hex')
+    if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+      console.error('[DarkRoom] darkroom_config.json MAC mismatch — rejecting cached address')
+      return ''
+    }
+    return addr
   } catch {
     return ''
   }
 }
 
-export function loadOnionAddr(): string {
-  // User-saved config (manual override) takes priority
+async function fetchOnionAddr(): Promise<string> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10_000)
   try {
-    const raw = fs.readFileSync(CONFIG_PATH(), 'utf-8')
-    const cfg: DarkRoomConfig = JSON.parse(raw)
-    if (cfg.onionAddr?.trim()) return cfg.onionAddr.trim()
-  } catch {}
-  // Fall back to the address baked in by the developer at build time
-  return loadBundledOnionAddr()
+    const res = await fetch(DARKROOM_CONFIG_URL, { signal: controller.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json() as { onionAddr?: string }
+    const addr = data.onionAddr?.trim()
+    if (!addr?.endsWith('.onion')) throw new Error('Invalid response from config endpoint')
+    return addr
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// Resolves the onion address: local cache first, remote fetch if not cached.
+export async function resolveOnionAddr(): Promise<string> {
+  const cached = loadCachedOnionAddr()
+  if (cached) return cached
+
+  const addr = await fetchOnionAddr()
+  saveCachedOnionAddr(addr)
+  return addr
 }
 
 // ── Proxy server ──────────────────────────────────────────────────────────────
@@ -57,12 +100,12 @@ class DarkRoomProxy {
 
   constructor(torSocksPort: number) {
     this.torSocksPort = torSocksPort
-    this.onionAddr = loadOnionAddr()
+    this.onionAddr = loadCachedOnionAddr()
   }
 
   setOnionAddr(addr: string) {
     this.onionAddr = addr
-    saveOnionAddr(addr)
+    saveCachedOnionAddr(addr)
   }
 
   getOnionAddr() { return this.onionAddr }

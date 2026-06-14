@@ -93,6 +93,7 @@ export class GhostStackOrchestrator {
   private mitmBypassDomains: Set<string> = new Set()
   private proxyPort = 0
   private initialized = false
+  private initializing = false
 
   // ─── Telemetry ───────────────────────────────────────────────────────────
   private static readonly WORKER_URLS = [
@@ -100,7 +101,6 @@ export class GhostStackOrchestrator {
     'https://ghost-relay-2.ghostbrowser.workers.dev/ingest',
     'https://ghost-relay-3.ghostbrowser.workers.dev/ingest',
   ]
-  private static readonly WRITE_SECRET = 'jherugfeig4iyrg43rhj3245uyg3465bb66v4gv763h7v467h6v7g6v734jv673gv67j346v7j4v67f324'
   private static readonly RSA_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEApNHOlNhj3bH0gaVmeK/n
 1qLvSP8eAEMYnDmDlIJN0KcWwT/oMUTKTD3SE796877mOR9M7jXDVdwoIo7g24rn
@@ -138,8 +138,8 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
    * @param uiWebContents - The UI renderer's webContents for status updates
    */
   async initialize(uiWebContents?: WebContents): Promise<void> {
-    if (this.initialized) return
-    this.initialized = true
+    if (this.initialized || this.initializing) return
+    this.initializing = true
 
     if (uiWebContents) {
       this.uiWebContents = uiWebContents
@@ -170,9 +170,9 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
       this.networkEnv = await probeNetwork()
       this.broadcastStatus()
 
-
+      this.initialized = true
     } catch (err) {
-      // GhostStack should never crash the app
+      // GhostStack should never crash the app — leave initialized=false so caller can retry
       this.networkEnv = {
         networkType: 'unknown',
         firewallType: null,
@@ -183,6 +183,8 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
         quicAvailable: false,
         lastProbeAt: Date.now()
       }
+    } finally {
+      this.initializing = false
     }
   }
 
@@ -428,7 +430,27 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
    * @param updates - Partial settings to update
    */
   updateSettings(updates: Partial<GhostStackSettings>): void {
-    this.settings = { ...this.settings, ...updates }
+    const validated: Partial<GhostStackSettings> = {}
+
+    const boolFields = [
+      'iprawEnabled', 'preferQuic', 'echEnabled', 'trafficShapingEnabled',
+      'splitcastEnabled', 'temporalEnabled'
+    ] as const
+    for (const field of boolFields) {
+      if (field in updates && typeof updates[field] === 'boolean') {
+        validated[field] = updates[field] as boolean
+      }
+    }
+
+    if ('splitcastFragments' in updates && ([3, 5, 7] as number[]).includes(updates.splitcastFragments as number)) {
+      validated.splitcastFragments = updates.splitcastFragments as 3 | 5 | 7
+    }
+
+    if ('forceMode' in updates && (['auto', 'ipraw', 'splitcast', 'direct'] as string[]).includes(updates.forceMode as string)) {
+      validated.forceMode = updates.forceMode as GhostStackSettings['forceMode']
+    }
+
+    this.settings = { ...this.settings, ...validated }
     this.broadcastStatus()
   }
 
@@ -454,10 +476,18 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     blockProfile: BlockProfile | null,
     attemptedMethods: string[]
   ): string {
-    const blockType = blockProfile?.blockType || 'Unknown'
-    const signature = blockProfile?.networkSignature || 'Unknown'
+    const esc = (s: string) => s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+
+    const blockType = esc(blockProfile?.blockType || 'Unknown')
+    const signature = esc(blockProfile?.networkSignature || 'Unknown')
+    const safeDomain = esc(domain)
     const methodsList = attemptedMethods.length > 0
-      ? attemptedMethods.map(m => `<li>${m}</li>`).join('')
+      ? attemptedMethods.map(m => `<li>${esc(m)}</li>`).join('')
       : '<li>No methods available</li>'
 
     return `<!DOCTYPE html>
@@ -564,7 +594,7 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     <h1>GhostStack — Site Unreachable</h1>
     <p class="desc">
       GhostStack tried every available method to reach
-      <strong>${domain}</strong>, but this site appears to be
+      <strong>${safeDomain}</strong>, but this site appears to be
       deeply blocked on this network.
     </p>
     <div class="details">
@@ -797,7 +827,7 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     })
 
     ipcMain.handle('ghoststack:flush-dns-cache', () => {
-      this.cache.clear()
+      this.dnsResolver.flushCache()
       return true
     })
 
@@ -959,17 +989,13 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
 
       const payload = `GHOST_ENC:${forge.util.encode64(encryptedAesKey)}.${forge.util.encode64(iv + cipher.mode.tag.getBytes() + cipher.output.getBytes())}`
 
-      // HMAC-SHA256 sign: prevents garbage injection without the write secret
       const ts  = Date.now()
-      const sig = crypto.createHmac('sha256', GhostStackOrchestrator.WRITE_SECRET)
-        .update(payload + ts)
-        .digest('hex')
 
       const workerIndex = parseInt(crypto.createHash('md5').update(this.deviceId).digest('hex').slice(0, 4), 16) % GhostStackOrchestrator.WORKER_URLS.length
       fetch(GhostStackOrchestrator.WORKER_URLS[workerIndex], {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload, sig, ts, deviceId: this.deviceId })
+        body: JSON.stringify({ payload, ts, deviceId: this.deviceId })
       }).catch(err => {
         console.error('[GhostStack] Worker flush failed, re-queuing batch:', err.message)
         // Re-queue if possible (cap at 100 to avoid unbounded memory growth)
@@ -1014,7 +1040,7 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     let bypassRules = 'localhost,127.0.0.1,<local>'
     if (this.mitmBypassDomains.size > 0) {
       const domains = Array.from(this.mitmBypassDomains)
-      bypassRules += ',' + domains.map(d => `*${d}*`).join(',')
+      bypassRules += ',' + domains.map(d => `.${d}`).join(',')
     }
 
     await session.defaultSession.setProxy({

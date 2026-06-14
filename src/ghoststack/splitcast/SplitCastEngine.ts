@@ -6,8 +6,6 @@
  */
 
 import { FragmentEncoder } from './FragmentEncoder'
-import { CarrierManager } from './CarrierManager'
-
 
 /** SplitCast options */
 export interface SplitCastOptions {
@@ -29,12 +27,9 @@ export interface SplitCastResult {
  */
 export class SplitCastEngine {
   private fragmentEncoder: FragmentEncoder
-  private carrierManager: CarrierManager
-
 
   constructor() {
     this.fragmentEncoder = new FragmentEncoder()
-    this.carrierManager = new CarrierManager()
   }
 
   /**
@@ -68,18 +63,20 @@ export class SplitCastEngine {
       // Segmentation failed
     }
 
-    // Strategy 2: Carrier-based verification
+    // Strategy 2: retry with maximum fragments — some DPI systems fail to
+    // reassemble beyond a certain segment count even when fewer fragments pass
+    const fallbackCount = options.fragmentCount === 7 ? 3 : 7
     try {
-      const carrierResult = await this.carrierVerifiedConnect(ip, domain)
-      if (carrierResult) {
+      const result2 = await this.tcpSegmentedConnect(ip, domain, fallbackCount)
+      if (result2) {
         return {
           success: true,
-          method: 'CARRIER_VERIFIED',
+          method: `TCP_SEGMENT_${fallbackCount}_FALLBACK`,
           latencyMs: Date.now() - start
         }
       }
     } catch {
-      // Carrier method failed
+      // Fallback segmentation failed
     }
 
     return {
@@ -106,14 +103,26 @@ export class SplitCastEngine {
     const net = require('net')
 
     return new Promise((resolve) => {
-      const timer = setTimeout(() => resolve(false), 8000)
+      let done = false
+      let socket: import('net').Socket | undefined
+
+      const finish = (result: boolean): void => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        socket?.destroy()
+        resolve(result)
+      }
+
+      const timer = setTimeout(() => finish(false), 8000)  // bug 3: destroy on timeout
 
       try {
         // Create raw TCP socket
-        const socket = new net.Socket()
-        socket.setNoDelay(true) // Disable Nagle's algorithm for precise segmentation
+        const s = new net.Socket()
+        socket = s  // expose to finish() for cleanup
+        s.setNoDelay(true) // Disable Nagle's algorithm for precise segmentation
 
-        socket.connect(443, ip, () => {
+        s.connect(443, ip, () => {
           // Build a TLS Client Hello manually
           const clientHello = this.buildMinimalClientHello(domain)
 
@@ -123,41 +132,29 @@ export class SplitCastEngine {
           // Send each fragment as a separate TCP segment
           let fragmentIndex = 0
           const sendNext = (): void => {
-            if (fragmentIndex >= fragments.length) {
-              // All fragments sent — now upgrade to TLS
-              clearTimeout(timer)
-              socket.destroy()
-              // Verify the path works by doing a proper TLS connect
-              this.verifyTLSPath(ip, domain).then(resolve)
-              return
-            }
+            if (done || fragmentIndex >= fragments.length) return  // bug 2: stop if done
 
             const fragment = fragments[fragmentIndex++]
-            socket.write(fragment, () => {
+            s.write(fragment, () => {
               // Small random delay between fragments to prevent reassembly
               const delay = Math.floor(Math.random() * 50) + 10
               setTimeout(sendNext, delay)
             })
           }
 
+          // bug 1: 0x16 = TLS Handshake (ServerHello) — anything else is a rejection
+          s.once('data', (data: Buffer) => {
+            finish(data.length > 0 && data[0] === 0x16)
+          })
+
           sendNext()
         })
 
-        socket.on('error', () => {
-          clearTimeout(timer)
-          resolve(false)
-        })
-
-        socket.on('timeout', () => {
-          clearTimeout(timer)
-          socket.destroy()
-          resolve(false)
-        })
-
-        socket.setTimeout(8000)
+        s.on('error', () => finish(false))
+        s.on('timeout', () => finish(false))
+        s.setTimeout(8000)
       } catch {
-        clearTimeout(timer)
-        resolve(false)
+        finish(false)
       }
     })
   }
@@ -242,59 +239,4 @@ export class SplitCastEngine {
     return record
   }
 
-  /**
-   * Verify TLS connection path after segmented probe.
-   * @param ip - Target IP
-   * @param domain - Target domain
-   * @returns true if TLS connects successfully
-   */
-  private async verifyTLSPath(ip: string, domain: string): Promise<boolean> {
-    const tls = require('tls')
-
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => resolve(false), 5000)
-
-      try {
-        const socket = tls.connect(
-          {
-            host: ip,
-            port: 443,
-            servername: domain,
-            rejectUnauthorized: false,
-            timeout: 5000
-          },
-          () => {
-            clearTimeout(timer)
-            socket.destroy()
-            resolve(true)
-          }
-        )
-
-        socket.on('error', () => {
-          clearTimeout(timer)
-          resolve(false)
-        })
-      } catch {
-        clearTimeout(timer)
-        resolve(false)
-      }
-    })
-  }
-
-  /**
-   * Connect using carrier-verified approach.
-   * Uses allowed carrier endpoints to verify the IP is reachable,
-   * then connects directly.
-   * @param ip - Target IP
-   * @param domain - Target domain
-   * @returns true if verified and connected
-   */
-  private async carrierVerifiedConnect(ip: string, domain: string): Promise<boolean> {
-    // Verify carriers are reachable
-    const carrierOk = await this.carrierManager.verifyCarriers()
-    if (!carrierOk) return false
-
-    // If carriers work, the network allows HTTPS — try direct with different segment sizes
-    return await this.verifyTLSPath(ip, domain)
-  }
 }

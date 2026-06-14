@@ -7,9 +7,8 @@ import { TabManager } from './tabManager'
 import { WindowManager } from './windowManager'
 import { GhostStackOrchestrator } from '../ghoststack/core/GhostStackOrchestrator'
 import { initLogger, closeLogger, getLogFilePath } from '../ghoststack/core/Logger'
-import { WalletIpcHandler } from '../ghoststack/wallet/WalletIpcHandler'
 import { torService } from './services/TorService'
-import { darkRoomProxy, loadOnionAddr } from './services/DarkRoomProxy'
+import { darkRoomProxy, resolveOnionAddr } from './services/DarkRoomProxy'
 
 // ─── GhostStack Chromium Flags ───
 // Encrypt DNS queries
@@ -23,10 +22,8 @@ app.commandLine.appendSwitch(
 // Enable QUIC/HTTP3 — uses UDP which firewalls cannot deep-inspect
 app.commandLine.appendSwitch('enable-quic')
 app.commandLine.appendSwitch('quic-version', 'h3')
-// Bypass SSL interception from network MITM proxies
-app.commandLine.appendSwitch('ignore-certificate-errors')
+// Allow self-signed certs ONLY for our local proxy (127.0.0.1)
 app.commandLine.appendSwitch('allow-insecure-localhost', 'true')
-app.commandLine.appendSwitch('disable-features', 'CertificateTransparencyComponentUpdater')
 
 // --- Anti-Bot / Anti-Fingerprint ---
 // Hide the fact that this is an automated browser (removes navigator.webdriver)
@@ -200,21 +197,22 @@ function registerIpcHandlers(): void {
 
   // ── Dark Room IPC ─────────────────────────────────────────────────────────
   ipcMain.handle('darkroom:get-config', () => ({
-    onionAddr:  loadOnionAddr(),
+    onionAddr:  darkRoomProxy.getOnionAddr(),  // empty until first fetch completes
     torStatus:  torService.getStatus(),
     torFound:   !!torService.findTorBinary(),
   }))
 
-  ipcMain.handle('darkroom:set-onion-addr', (_e, addr: string) => {
-    darkRoomProxy.setOnionAddr(addr)
-    return true
-  })
-
   ipcMain.handle('darkroom:start', async () => {
     if (uiView) torService.setWebContents(uiView.webContents)
 
+    // Fetch .onion from remote if not cached locally yet
     if (!darkRoomProxy.getOnionAddr()) {
-      return { ok: false, error: 'NO_ONION_ADDR' }
+      try {
+        const addr = await resolveOnionAddr()
+        darkRoomProxy.setOnionAddr(addr)
+      } catch {
+        return { ok: false, error: 'NO_ONION_ADDR' }
+      }
     }
 
     try {
@@ -234,10 +232,6 @@ function registerIpcHandlers(): void {
     return true
   })
 
-  // Register Web3 Wallet IPC Handlers
-  const walletHandler = new WalletIpcHandler()
-  if (uiView) walletHandler.setUIWebContents(uiView.webContents)
-  walletHandler.registerHandlers()
 }
 
 function startMemoryMonitor(): void {
@@ -266,23 +260,40 @@ app.whenReady().then(async () => {
   createWindow()
 
   // Pre-warm Tor in the background so Dark Room lobby is instant when user opens it
-  if (loadOnionAddr()) {
-    setTimeout(() => {
+  setTimeout(async () => {
+    try {
       if (uiView) torService.setWebContents(uiView.webContents)
-      torService.start().then(() => {
-        darkRoomProxy.start().catch(() => {})
-      }).catch(() => {})
-    }, 3000)
-  }
+      // Fetch and cache .onion address if not already cached
+      if (!darkRoomProxy.getOnionAddr()) {
+        const addr = await resolveOnionAddr()
+        darkRoomProxy.setOnionAddr(addr)
+      }
+      await torService.start()
+      await darkRoomProxy.start()
+    } catch {
+      // Silent — user will see error when they open Dark Room
+    }
+  }, 3000)
 
   app.on('activate', () => {
     if (!mainWindow) createWindow()
   })
 
-  // SSL bypass for MITM proxies on university networks
-  app.on('certificate-error', (event, _webContents, _url, _error, _certificate, callback) => {
-    event.preventDefault()
-    callback(true)
+  // Scoped SSL bypass: only trust our own local proxy, reject bad certs everywhere else
+  app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
+    try {
+      const parsed = new URL(url)
+      if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') {
+        // Our local GhostStack proxy / DarkRoom Tor proxy — trust it
+        event.preventDefault()
+        callback(true)
+      } else {
+        // Public internet — enforce normal TLS verification
+        callback(false)
+      }
+    } catch {
+      callback(false)
+    }
   })
 })
 

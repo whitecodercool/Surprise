@@ -67,6 +67,8 @@ export class DNSResolver {
   private dnsCache: Map<string, DNSCacheEntry> = new Map()
   /** Negative cache — domains that don't exist */
   private negativeCache: Map<string, DNSCacheEntry> = new Map()
+  /** In-flight DoH lookups — coalesces parallel CONNECT requests for the same domain */
+  private inFlight: Map<string, Promise<string | null>> = new Map()
   /** Max negative cache TTL (5 minutes) */
   private readonly NEGATIVE_TTL = 300
   /** Max cache size before eviction */
@@ -124,61 +126,14 @@ export class DNSResolver {
         return sessionCached.ip
       }
 
-      // 3. Primary DoH
-      const primaryResult = await this.resolveViaDoH(domain, this.settings.primaryProvider)
-      if (primaryResult) {
-        this.stats.dohSuccesses++
-        return primaryResult
-      }
+      // 3-7. Network resolution — deduplicate parallel CONNECT requests for the same domain
+      const existing = this.inFlight.get(domain)
+      if (existing) return existing
 
-      // 4. Fallback DoH providers
-      const fallbacks: DoHProvider[] = ['cloudflare', 'google', 'nextdns', 'quad9', 'adguard', 'mullvad']
-      for (const provider of fallbacks) {
-        if (provider === this.settings.primaryProvider) continue
-        const result = await this.resolveViaDoH(domain, provider)
-        if (result) {
-          this.stats.dohSuccesses++
-          return result
-        }
-      }
-
-      // 5. DoH Consensus (query all providers simultaneously)
-      try {
-        const consensusResult = await consensusResolve(domain)
-        if (consensusResult) {
-          this.cacheResult(domain, consensusResult.ip, null, consensusResult.provider, 300)
-          this.sessionCache.setIP(domain, consensusResult.ip, null, 'DOH_CONSENSUS')
-          this.stats.consensusSuccesses++
-          return consensusResult.ip
-        }
-      } catch {}
-
-      // 6. DNS-over-TLS (if DoH is blocked/failing)
-      if (this.settings.enableDoT) {
-        const dotResult = await this.resolveViaDoT(domain, this.settings.dotProvider)
-        if (dotResult) {
-          this.stats.dotSuccesses++
-          return dotResult
-        }
-
-        // 7. DoT consensus (multiple DoT providers)
-        try {
-          const dotConsensus = await consensusDoT(domain)
-          if (dotConsensus) {
-            this.cacheResult(domain, dotConsensus.ip, null, dotConsensus.provider, 300)
-            this.sessionCache.setIP(domain, dotConsensus.ip, null, 'DOH_CONSENSUS')
-            this.stats.dotSuccesses++
-            return dotConsensus.ip
-          }
-        } catch {}
-      }
-
-      // All methods failed — negative cache this domain
-      if (this.settings.enableNegativeCache) {
-        this.cacheNegative(domain)
-      }
-      this.stats.failures++
-      return null
+      const promise = this._networkResolve(domain)
+      this.inFlight.set(domain, promise)
+      promise.finally(() => this.inFlight.delete(domain))
+      return promise
     } finally {
       const elapsed = Date.now() - startTime
       this.stats.totalResolutionMs += elapsed
@@ -207,6 +162,65 @@ export class DNSResolver {
     }
 
     return { ipv4, ipv6 }
+  }
+
+  /** Network resolution chain (steps 3-7). Called once per domain; parallel callers share the same Promise. */
+  private async _networkResolve(domain: string): Promise<string | null> {
+    // 3. Primary DoH
+    const primaryResult = await this.resolveViaDoH(domain, this.settings.primaryProvider)
+    if (primaryResult) {
+      this.stats.dohSuccesses++
+      return primaryResult
+    }
+
+    // 4. Fallback DoH providers
+    const fallbacks: DoHProvider[] = ['cloudflare', 'google', 'nextdns', 'quad9', 'adguard', 'mullvad']
+    for (const provider of fallbacks) {
+      if (provider === this.settings.primaryProvider) continue
+      const result = await this.resolveViaDoH(domain, provider)
+      if (result) {
+        this.stats.dohSuccesses++
+        return result
+      }
+    }
+
+    // 5. DoH Consensus (query all providers simultaneously)
+    try {
+      const consensusResult = await consensusResolve(domain)
+      if (consensusResult) {
+        this.cacheResult(domain, consensusResult.ip, null, consensusResult.provider, 300)
+        this.sessionCache.setIP(domain, consensusResult.ip, null, 'DOH_CONSENSUS')
+        this.stats.consensusSuccesses++
+        return consensusResult.ip
+      }
+    } catch {}
+
+    // 6. DNS-over-TLS (if DoH is blocked/failing)
+    if (this.settings.enableDoT) {
+      const dotResult = await this.resolveViaDoT(domain, this.settings.dotProvider)
+      if (dotResult) {
+        this.stats.dotSuccesses++
+        return dotResult
+      }
+
+      // 7. DoT consensus (multiple DoT providers)
+      try {
+        const dotConsensus = await consensusDoT(domain)
+        if (dotConsensus) {
+          this.cacheResult(domain, dotConsensus.ip, null, dotConsensus.provider, 300)
+          this.sessionCache.setIP(domain, dotConsensus.ip, null, 'DOH_CONSENSUS')
+          this.stats.dotSuccesses++
+          return dotConsensus.ip
+        }
+      } catch {}
+    }
+
+    // All methods failed — negative cache this domain
+    if (this.settings.enableNegativeCache) {
+      this.cacheNegative(domain)
+    }
+    this.stats.failures++
+    return null
   }
 
   /** Resolve via a single DoH provider */

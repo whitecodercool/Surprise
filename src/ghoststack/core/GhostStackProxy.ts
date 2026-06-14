@@ -123,15 +123,21 @@ export class GhostStackProxy {
       return
     }
 
-    // Skip proxy for localhost and local network
+    // Localhost — needed for the internal relay server and DarkRoom proxy
+    if (domain === '127.0.0.1' || domain === 'localhost') {
+      this.directTunnel(domain, port, clientSocket, head)
+      return
+    }
+
+    // Block all private / link-local ranges — browser pages must never reach these
     if (
-      domain === '127.0.0.1' ||
-      domain === 'localhost' ||
-      domain.startsWith('192.168.') ||
-      domain.startsWith('10.') ||
+      domain.startsWith('192.168.')  ||
+      domain.startsWith('10.')       ||
+      domain.startsWith('169.254.')  ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(domain) ||
       domain.endsWith('.local')
     ) {
-      this.directTunnel(domain, port, clientSocket, head)
+      clientSocket.end('HTTP/1.1 403 Forbidden\r\n\r\n')
       return
     }
 
@@ -211,33 +217,20 @@ export class GhostStackProxy {
           serverSocket.write(head)
         }
 
-        const isBlocked = this.cache.getBlockProfile(domain) !== null || this.cache.getBypass(domain) !== null;
-
-        if (isBlocked) {
-          console.log(`[GhostStack Proxy] ${domain} -> Applying Native SplitCast (1B+50ms)`);
-          let isFirstChunk = true;
-          
-          clientSocket.on('data', (chunk) => {
-            if (isFirstChunk && chunk.length > 10 && chunk[0] === 0x16) {
-              isFirstChunk = false;
-              const splitPoint = 1;
-              const delay = 50;
-              
-              const chunk1 = chunk.subarray(0, splitPoint);
-              const chunk2 = chunk.subarray(splitPoint);
-              
-              serverSocket.write(chunk1);
-              setTimeout(() => {
-                if (!serverSocket.destroyed) serverSocket.write(chunk2);
-              }, delay);
-            } else {
-              if (!serverSocket.destroyed) serverSocket.write(chunk);
-            }
-          });
-        } else {
-          // Direct transparent pipe for unblocked domains (e.g. video CDNs)
-          clientSocket.pipe(serverSocket);
-        }
+        // Always apply 1-byte TLS split — fragments the ClientHello SNI on every connection
+        // so DPI never sees the full SNI field regardless of whether the domain is known-blocked.
+        let isFirstChunk = true
+        clientSocket.on('data', (chunk) => {
+          if (isFirstChunk && chunk.length > 1 && chunk[0] === 0x16) {
+            isFirstChunk = false
+            serverSocket.write(chunk.subarray(0, 1))
+            setTimeout(() => {
+              if (!serverSocket.destroyed) serverSocket.write(chunk.subarray(1))
+            }, 50)
+          } else {
+            if (!serverSocket.destroyed) serverSocket.write(chunk)
+          }
+        })
         
         serverSocket.pipe(clientSocket);
 
