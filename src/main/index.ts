@@ -1,4 +1,4 @@
-import { app, BaseWindow, WebContentsView, ipcMain, Menu } from 'electron'
+import { app, BaseWindow, WebContentsView, ipcMain, Menu, nativeImage } from 'electron'
 import { initializeGhostProtocol } from '../ghoststack/core/network/GhostProtocol'
 
 import { join } from 'path'
@@ -35,8 +35,6 @@ app.userAgentFallback = uaRotator.getSessionUA()
 
 let mainWindow: BaseWindow | null = null
 let uiView: WebContentsView | null = null
-let tabManager: TabManager | null = null
-let windowManager: WindowManager | null = null
 let ghostStack: GhostStackOrchestrator | null = null
 
 let startupTimeMs = 0
@@ -46,12 +44,43 @@ import { protocol } from 'electron'
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'ghost',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true, stream: true }
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      corsEnabled: true,
+      stream: true
+    }
   }
 ])
 
-function createWindow(): void {
-  mainWindow = new BaseWindow({
+export interface WindowInstance {
+  mainWindow: BaseWindow
+  uiView: WebContentsView
+  tabManager: TabManager
+  windowManager: WindowManager
+  ghostStack: GhostStackOrchestrator
+}
+
+export const windowInstances: WindowInstance[] = []
+
+export function findInstanceByWebContents(sender: any): WindowInstance | null {
+  if (!sender || typeof sender.id !== 'number') return null
+  for (const inst of windowInstances) {
+    if (inst.uiView.webContents.id === sender.id) {
+      return inst
+    }
+    if (inst.tabManager.hasWebContents(sender)) {
+      return inst
+    }
+  }
+  return null
+}
+
+export function createWindow(initialUrl?: string): void {
+  const isFirstWindow = windowInstances.length === 0
+  const window = new BaseWindow({
     width: 1280,
     height: 860,
     minWidth: 800,
@@ -60,10 +89,10 @@ function createWindow(): void {
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#141414',
-    ...(process.platform === 'linux' ? { icon: join(__dirname, '../../resources/icon.png') } : {})
+    ...(process.platform !== 'darwin' ? { icon: join(__dirname, '../../resources/icon.png') } : {})
   })
 
-  uiView = new WebContentsView({
+  const view = new WebContentsView({
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -72,47 +101,84 @@ function createWindow(): void {
     }
   })
 
-  uiView.setBackgroundColor('#141414')
-  mainWindow.contentView.addChildView(uiView)
-
-
+  view.setBackgroundColor('#141414')
+  window.contentView.addChildView(view)
 
   // Initialize GhostStack
-  ghostStack = new GhostStackOrchestrator()
-  // Initialize managers — GhostStack replaces PrivacyEngine, RoutingEngine, AntiFingerprintEngine
-  windowManager = new WindowManager(mainWindow)
-  tabManager = new TabManager(mainWindow, uiView, windowManager, ghostStack)
+  const stack = new GhostStackOrchestrator()
+  // Initialize managers
+  const winMgr = new WindowManager(window)
+  const tabMgr = new TabManager(window, view, winMgr, stack)
 
-  // Set initial UI view bounds
-  const { width, height } = mainWindow.getContentBounds()
-  uiView.setBounds({ x: 0, y: 0, width, height })
+  // Fallbacks for backward compatibility
+  mainWindow = window
+  uiView = view
+  ghostStack = stack
 
-  mainWindow.on('resize', () => {
-    if (!mainWindow || !uiView || !windowManager) return
-    const bounds = mainWindow.getContentBounds()
-    uiView.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height })
-    windowManager.handleResize()
-    tabManager?.positionTabs()
+  const instance: WindowInstance = {
+    mainWindow: window,
+    uiView: view,
+    tabManager: tabMgr,
+    windowManager: winMgr,
+    ghostStack: stack
+  }
+  windowInstances.push(instance)
+
+  window.on('closed', () => {
+    const idx = windowInstances.indexOf(instance)
+    if (idx !== -1) {
+      windowInstances.splice(idx, 1)
+    }
+    stack.destroy()
+
+    if (windowInstances.length > 0) {
+      const remainingInst = windowInstances[windowInstances.length - 1]
+      mainWindow = remainingInst.mainWindow
+      uiView = remainingInst.uiView
+      ghostStack = remainingInst.ghostStack
+      remainingInst.ghostStack.updateProxyRules()
+    } else {
+      mainWindow = null
+      uiView = null
+      ghostStack = null
+    }
   })
 
-  uiView.webContents.once('did-finish-load', async () => {
-    mainWindow?.show()
+  // Set initial UI view bounds
+  const { width, height } = window.getContentBounds()
+  view.setBounds({ x: 0, y: 0, width, height })
+
+  window.on('resize', () => {
+    const bounds = window.getContentBounds()
+    view.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height })
+    winMgr.handleResize()
+    tabMgr.positionTabs()
+  })
+
+  view.webContents.once('did-finish-load', async () => {
+    window.show()
     startupTimeMs = process.uptime() * 1000
-    startMemoryMonitor()
+    startMemoryMonitor(view)
 
     // Initialize GhostStack after UI is ready
-    if (ghostStack && uiView) {
-      ghostStack.setUIWebContents(uiView.webContents)
-      if (tabManager) ghostStack.setTabManager(tabManager)
-      await ghostStack.initialize(uiView.webContents)
+    stack.setUIWebContents(view.webContents)
+    stack.setTabManager(tabMgr)
+    await stack.initialize(view.webContents)
+
+    // Open initial tab if specified
+    if (initialUrl) {
+      tabMgr.createTab(initialUrl)
     }
   })
 
   // Load the React UI
+  const queryParam = isFirstWindow ? '' : '?noSplash=true'
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    uiView.webContents.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    view.webContents.loadURL(process.env['ELECTRON_RENDERER_URL'] + queryParam)
   } else {
-    uiView.webContents.loadFile(join(__dirname, '../renderer/index.html'))
+    view.webContents.loadFile(join(__dirname, '../renderer/index.html'), {
+      query: isFirstWindow ? {} : { noSplash: 'true' }
+    })
   }
 
   Menu.setApplicationMenu(null)
@@ -120,67 +186,154 @@ function createWindow(): void {
 
 function registerIpcHandlers(): void {
   // Tab management
-  ipcMain.handle('tab:create', async (_event, url: string) => {
-    if (!tabManager) return null
-    return tabManager.createTab(url)
+  ipcMain.handle('tab:create', async (event, url: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    if (!inst) return null
+    return inst.tabManager.createTab(url)
   })
 
-  ipcMain.on('tab:close', (_event, id: string) => {
-    tabManager?.closeTab(id)
+  ipcMain.handle('tabs:get', (event) => {
+    const inst = findInstanceByWebContents(event.sender)
+    if (!inst) return { tabs: [], activeTabId: null }
+    return inst.tabManager.getTabsState()
   })
-  ipcMain.on('tab:switch', (_event, id: string) => {
-    tabManager?.switchTab(id)
+
+  ipcMain.on('tab:close', (event, id: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.closeTab(id)
   })
-  ipcMain.on('tab:navigate', (_event, id: string, url: string) => {
-    tabManager?.navigateTo(id, url)
+  ipcMain.on('tab:switch', (event, id: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.switchTab(id)
   })
-  ipcMain.on('tab:back', (_event, id: string) => {
-    tabManager?.goBack(id)
+  ipcMain.on('tab:navigate', (event, id: string, url: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.navigateTo(id, url)
   })
-  ipcMain.on('tab:forward', (_event, id: string) => {
-    tabManager?.goForward(id)
+  ipcMain.on('tab:back', (event, id: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.goBack(id)
   })
-  ipcMain.on('tab:reload', (_event, id: string) => {
-    tabManager?.reload(id)
+  ipcMain.on('tab:forward', (event, id: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.goForward(id)
   })
-  ipcMain.on('tab:mute', (_event, id: string) => {
-    tabManager?.muteTab(id, true)
+  ipcMain.on('tab:reload', (event, id: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.reload(id)
   })
-  ipcMain.on('tab:unmute', (_event, id: string) => {
-    tabManager?.muteTab(id, false)
+  ipcMain.on('tab:mute', (event, id: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.muteTab(id, true)
+  })
+  ipcMain.on('tab:unmute', (event, id: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.muteTab(id, false)
   })
 
   // Split view
   ipcMain.on(
     'split:toggle',
-    (_event, mode: string, primaryId: string, secondaryId: string | null) => {
-      tabManager?.setSplitView(mode as 'none' | 'horizontal' | 'vertical', primaryId, secondaryId)
+    (event, mode: string, primaryId: string, secondaryId: string | null) => {
+      const inst = findInstanceByWebContents(event.sender)
+      inst?.tabManager.setSplitView(
+        mode as 'none' | 'horizontal' | 'vertical',
+        primaryId,
+        secondaryId
+      )
     }
   )
 
   // Sidebar width
-  ipcMain.on('sidebar:width', (_event, width: number) => {
-    if (windowManager) {
-      windowManager.setSidebarWidth(width)
-      windowManager.handleResize()
+  ipcMain.on('sidebar:width', (event, width: number) => {
+    const inst = findInstanceByWebContents(event.sender)
+    if (inst) {
+      inst.windowManager.setSidebarWidth(width)
+      inst.windowManager.handleResize()
+      inst.tabManager.positionTabs()
     }
-    // Reposition tab content views after sidebar width change
-    tabManager?.positionTabs()
   })
 
-  ipcMain.on('overlay:active', (_event, active: boolean) => {
-    tabManager?.setOverlayActive(active)
+  ipcMain.on('overlay:active', (event, active: boolean) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.tabManager.setOverlayActive(active)
+  })
+
+  ipcMain.on('menu:kebab:show', (event, currentTheme: string) => {
+    const inst = findInstanceByWebContents(event.sender)
+    if (!inst) return
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'New Tab',
+        accelerator: 'CmdOrCtrl+T',
+        click: () => {
+          inst.uiView.webContents.send('menu:action', 'new-tab')
+        }
+      },
+      {
+        label: 'New Window',
+        accelerator: 'CmdOrCtrl+N',
+        click: () => {
+          createWindow()
+        }
+      },
+      {
+        label: 'Add Shortcut',
+        click: () => {
+          inst.uiView.webContents.send('menu:action', 'add-shortcut')
+        }
+      },
+      { type: 'separator' },
+      {
+        label: 'Light Theme',
+        type: 'radio',
+        checked: currentTheme === 'light',
+        click: () => {
+          inst.uiView.webContents.send('menu:theme-change', 'light')
+        }
+      },
+      {
+        label: 'Dark Theme',
+        type: 'radio',
+        checked: currentTheme === 'dark',
+        click: () => {
+          inst.uiView.webContents.send('menu:theme-change', 'dark')
+        }
+      },
+      {
+        label: 'System Theme',
+        type: 'radio',
+        checked: currentTheme === 'system',
+        click: () => {
+          inst.uiView.webContents.send('menu:theme-change', 'system')
+        }
+      },
+      { type: 'separator' },
+      {
+        label: 'Commands',
+        accelerator: 'CmdOrCtrl+K',
+        click: () => {
+          inst.uiView.webContents.send('menu:action', 'commands')
+        }
+      }
+    ])
+    contextMenu.popup({ window: inst.mainWindow })
   })
 
   // Window controls
-  ipcMain.on('window:minimize', () => {
-    mainWindow?.minimize()
+  ipcMain.on('window:minimize', (event) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.mainWindow.minimize()
   })
-  ipcMain.on('window:maximize', () => {
-    mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize()
+  ipcMain.on('window:maximize', (event) => {
+    const inst = findInstanceByWebContents(event.sender)
+    if (inst) {
+      inst.mainWindow.isMaximized() ? inst.mainWindow.unmaximize() : inst.mainWindow.maximize()
+    }
   })
-  ipcMain.on('window:close', () => {
-    mainWindow?.close()
+  ipcMain.on('window:close', (event) => {
+    const inst = findInstanceByWebContents(event.sender)
+    inst?.mainWindow.close()
   })
 
   // Performance
@@ -197,13 +350,14 @@ function registerIpcHandlers(): void {
 
   // ── Dark Room IPC ─────────────────────────────────────────────────────────
   ipcMain.handle('darkroom:get-config', () => ({
-    onionAddr:  darkRoomProxy.getOnionAddr(),  // empty until first fetch completes
-    torStatus:  torService.getStatus(),
-    torFound:   !!torService.findTorBinary(),
+    onionAddr: darkRoomProxy.getOnionAddr(), // empty until first fetch completes
+    torStatus: torService.getStatus(),
+    torFound: !!torService.findTorBinary()
   }))
 
-  ipcMain.handle('darkroom:start', async () => {
-    if (uiView) torService.setWebContents(uiView.webContents)
+  ipcMain.handle('darkroom:start', async (event) => {
+    const inst = findInstanceByWebContents(event.sender)
+    if (inst) torService.setWebContents(inst.uiView.webContents)
 
     // Fetch .onion from remote if not cached locally yet
     if (!darkRoomProxy.getOnionAddr()) {
@@ -231,15 +385,17 @@ function registerIpcHandlers(): void {
     torService.stop()
     return true
   })
-
 }
 
-function startMemoryMonitor(): void {
-  setInterval(async () => {
-    if (!uiView || uiView.webContents.isDestroyed()) return
+function startMemoryMonitor(view: WebContentsView): void {
+  const intervalId = setInterval(async () => {
+    if (view.webContents.isDestroyed()) {
+      clearInterval(intervalId)
+      return
+    }
     try {
       const memory = await process.getProcessMemoryInfo()
-      uiView.webContents.send('app:memory-metrics', memory)
+      view.webContents.send('app:memory-metrics', memory)
     } catch {
       /* Ignore */
     }
@@ -249,7 +405,18 @@ function startMemoryMonitor(): void {
 app.whenReady().then(async () => {
   // Initialize persistent logging FIRST — all console.log calls are now saved to disk
   initLogger()
-  console.log(`[Flux] Log file: ${getLogFilePath()}`)
+  console.log(`[Ghost Browser] Log file: ${getLogFilePath()}`)
+
+  // Set macOS Dock Icon dynamically during development
+  if (process.platform === 'darwin') {
+    try {
+      const iconPath = join(__dirname, '../../resources/icon.png')
+      const image = nativeImage.createFromPath(iconPath)
+      app.dock?.setIcon(image)
+    } catch (e) {
+      console.error('Failed to set macOS dock icon:', e)
+    }
+  }
 
   // Initialize GhostProtocol for DPI evasion (starts local relay server)
   await initializeGhostProtocol()

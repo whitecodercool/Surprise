@@ -8,7 +8,6 @@
 import { net } from 'electron'
 import { queryDoH, resolveSystemDNS } from '../dns/DoHClient'
 
-
 export interface NetworkEnvironment {
   /** Detected network type */
   networkType: 'open' | 'filtered' | 'heavily_restricted' | 'unknown'
@@ -35,18 +34,18 @@ const PROBE_DOMAINS = ['youtube.com', 'twitter.com', 'reddit.com']
 const FIREWALL_DETECTORS: Record<string, string[]> = {
   'Sophos Firewall': ['sophos', 'webcat', 'sophosxg'],
   'Fortinet FortiGuard': ['fortiguard', 'fortinet', 'fortigate'],
-  'Zscaler': ['zscaler', 'zscalerone'],
-  'Forcepoint': ['forcepoint', 'websense'],
-  'Barracuda': ['barracuda', 'barracudanetworks'],
+  Zscaler: ['zscaler', 'zscalerone'],
+  Forcepoint: ['forcepoint', 'websense'],
+  Barracuda: ['barracuda', 'barracudanetworks'],
   'Palo Alto': ['paloalto', 'paloaltonetworks', 'panw'],
   'Blue Coat': ['bluecoat', 'symantec.*proxy'],
   'Cisco Umbrella': ['umbrella', 'opendns'],
-  'Untangle': ['untangle'],
-  'Smoothwall': ['smoothwall'],
-  'pfSense': ['pfsense'],
+  Untangle: ['untangle'],
+  Smoothwall: ['smoothwall'],
+  pfSense: ['pfsense'],
   'Squid Proxy': ['squid', 'cache_peer'],
-  'ContentKeeper': ['contentkeeper'],
-  'Lightspeed': ['lightspeed', 'relay.school']
+  ContentKeeper: ['contentkeeper'],
+  Lightspeed: ['lightspeed', 'relay.school']
 }
 
 /**

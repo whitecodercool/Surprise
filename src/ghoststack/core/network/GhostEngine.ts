@@ -1,9 +1,8 @@
 import { GhostHandshake } from './GhostHandshake'
 
-
 /**
  * GhostEngine
- * 
+ *
  * The master orchestrator for ChronoFlow native evasion.
  * Replaces CORS relays with direct raw TLS connections multiplexed with Semantic Fragmentation.
  */
@@ -11,13 +10,22 @@ export class GhostEngine {
   /**
    * Fetches a URL natively over a raw fragmented TLS socket.
    */
-  static async fetch(url: string, requestInit?: RequestInit, redirectCount = 0, useWorkerTunnel = false): Promise<Response> {
+  static async fetch(
+    url: string,
+    requestInit?: RequestInit,
+    redirectCount = 0,
+    useWorkerTunnel = false
+  ): Promise<Response> {
     return new Promise(async (resolve) => {
       try {
         const parsedUrl = new URL(url)
         const hostname = parsedUrl.hostname
-        const port = parsedUrl.port ? parseInt(parsedUrl.port) : (parsedUrl.protocol === 'https:' ? 443 : 80)
-        
+        const port = parsedUrl.port
+          ? parseInt(parsedUrl.port)
+          : parsedUrl.protocol === 'https:'
+            ? 443
+            : 80
+
         // 1. Establish trusted connection
         let socket
         // if (useWorkerTunnel) {
@@ -31,14 +39,13 @@ export class GhostEngine {
         //     return
         //   }
         // } else {
-          socket = await GhostHandshake.establishTrustedConnection(hostname, port)
+        socket = await GhostHandshake.establishTrustedConnection(hostname, port)
         // }
 
-        
         // 2. Prepare headers
         const headers: Record<string, string> = {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          'Accept': '*/*',
+          Accept: '*/*',
           ...((requestInit?.headers as Record<string, string>) || {})
         }
         if (!headers['Host'] && !headers['host']) {
@@ -61,7 +68,8 @@ export class GhostEngine {
         const req = http.request(reqOptions, (res: any) => {
           const responseHeaders = new Headers()
           for (const [key, value] of Object.entries(res.headers)) {
-            if (value) responseHeaders.set(key, Array.isArray(value) ? value.join(',') : (value as string))
+            if (value)
+              responseHeaders.set(key, Array.isArray(value) ? value.join(',') : (value as string))
           }
 
           // Handle Redirects natively
@@ -73,8 +81,13 @@ export class GhostEngine {
             }
             let location = res.headers.location
             if (location.startsWith('/')) location = `${parsedUrl.origin}${location}`
-            
-            if (location.includes('bmunet.bmu.edu.in') || location.includes('webcat') || location.includes('sophos') || location.includes('/ips/block/')) {
+
+            if (
+              location.includes('bmunet.bmu.edu.in') ||
+              location.includes('webcat') ||
+              location.includes('sophos') ||
+              location.includes('/ips/block/')
+            ) {
               console.warn(`[GhostEngine] ⚠️ Firewall block redirect detected → ${location}`)
               if (redirectCount >= 2) {
                 resolve(new Response('Firewall Blocked', { status: 503 }))
@@ -84,7 +97,9 @@ export class GhostEngine {
               return
             }
 
-            GhostEngine.fetch(location, requestInit, redirectCount + 1, useWorkerTunnel).then(resolve)
+            GhostEngine.fetch(location, requestInit, redirectCount + 1, useWorkerTunnel).then(
+              resolve
+            )
             return
           }
 
@@ -96,10 +111,12 @@ export class GhostEngine {
           // }
 
           const noBody = [204, 205, 304].includes(res.statusCode)
-          resolve(new Response(noBody ? null : res as any, {
-            status: res.statusCode,
-            headers: responseHeaders
-          }))
+          resolve(
+            new Response(noBody ? null : (res as any), {
+              status: res.statusCode,
+              headers: responseHeaders
+            })
+          )
         })
 
         req.on('error', (err: any) => {
@@ -111,7 +128,6 @@ export class GhostEngine {
           req.write(requestInit.body)
         }
         req.end()
-
       } catch (err) {
         console.error('[GhostEngine] Fetch Error:', err)
         resolve(new Response('GhostEngine Error', { status: 502 }))

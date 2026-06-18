@@ -9,7 +9,9 @@ export class CookieIsolator {
   private allowlist: Set<string> = new Set()
 
   /** Apply cookie isolation to the default session */
-  apply(): void { /* Applied via applyToSession */ }
+  apply(): void {
+    /* Applied via applyToSession */
+  }
 
   /** Apply cookie isolation interceptors to a session */
   applyToSession(_ses: Session): void {
@@ -26,7 +28,9 @@ export class CookieIsolator {
         const ref = new URL(details.requestHeaders['Referer']).hostname
         const req = new URL(details.url).hostname
         if (!req.endsWith(ref) && !ref.endsWith(req)) is3p = true
-      } catch { /* invalid URL */ }
+      } catch {
+        /* invalid URL */
+      }
     } else if ((details.resourceType as any) !== 'subFrame') {
       is3p = true
     }
@@ -51,18 +55,26 @@ export class CookieIsolator {
   }
 
   /** Add domain to cookie allowlist */
-  addToAllowlist(domain: string): void { this.allowlist.add(domain) }
+  addToAllowlist(domain: string): void {
+    this.allowlist.add(domain)
+  }
   /** Remove domain from allowlist */
-  removeFromAllowlist(domain: string): void { this.allowlist.delete(domain) }
+  removeFromAllowlist(domain: string): void {
+    this.allowlist.delete(domain)
+  }
   /** Check if domain is allowlisted */
-  isAllowlisted(domain: string): boolean { return this.allowlist.has(domain) }
+  isAllowlisted(domain: string): boolean {
+    return this.allowlist.has(domain)
+  }
   /** Clear all session cookies */
   async clearSessionCookies(): Promise<void> {
     const cookies = await session.defaultSession.cookies.get({})
     for (const cookie of cookies) {
       if (!cookie.expirationDate) {
         const url = `${cookie.secure ? 'https' : 'http'}://${cookie.domain?.replace(/^\./, '')}${cookie.path}`
-        try { await session.defaultSession.cookies.remove(url, cookie.name) } catch {}
+        try {
+          await session.defaultSession.cookies.remove(url, cookie.name)
+        } catch {}
       }
     }
   }

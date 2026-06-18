@@ -1,4 +1,5 @@
 # Ghost-browser
+
 <div align="center">
   <img src="./assets/banner.jpg" width="600" alt="Welcome to the World Wide Web - Ghost C2"/>
 </div>

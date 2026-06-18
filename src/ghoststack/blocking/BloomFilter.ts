@@ -18,7 +18,7 @@ export class BloomFilter {
   /** Add a value to the filter */
   add(value: string): void {
     for (const pos of this.getPositions(value)) {
-      this.bits[Math.floor(pos / 8)] |= (1 << (pos % 8))
+      this.bits[Math.floor(pos / 8)] |= 1 << (pos % 8)
     }
   }
 
@@ -34,7 +34,7 @@ export class BloomFilter {
     const positions: number[] = []
     for (let i = 0; i < this.hashCount; i++) {
       const hash = createHash('md5').update(`${i}:${value}`).digest()
-      const pos = (hash.readUInt32BE(0) % this.size + this.size) % this.size
+      const pos = ((hash.readUInt32BE(0) % this.size) + this.size) % this.size
       positions.push(pos)
     }
     return positions

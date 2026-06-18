@@ -2,8 +2,17 @@ import { useEffect } from 'react'
 import { useBrowser } from '../context/BrowserContext'
 
 export function useKeyboardShortcuts(): void {
-  const { state, dispatch, createNewTab, closeTab, switchTab, goBack, goForward, reload, restoreClosedTab } =
-    useBrowser()
+  const {
+    state,
+    dispatch,
+    createNewTab,
+    closeTab,
+    switchTab,
+    goBack,
+    goForward,
+    reload,
+    restoreClosedTab
+  } = useBrowser()
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -138,5 +147,15 @@ export function useKeyboardShortcuts(): void {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [state, dispatch, createNewTab, closeTab, switchTab, goBack, goForward, reload, restoreClosedTab])
+  }, [
+    state,
+    dispatch,
+    createNewTab,
+    closeTab,
+    switchTab,
+    goBack,
+    goForward,
+    reload,
+    restoreClosedTab
+  ])
 }

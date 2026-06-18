@@ -8,9 +8,15 @@
 /** Comprehensive list of known tracking parameters */
 const TRACKING_PARAMS = new Set([
   // Google
-  'gclid', 'dclid', 'gclsrc', '_gl', 'wbraid', 'gbraid',
+  'gclid',
+  'dclid',
+  'gclsrc',
+  '_gl',
+  'wbraid',
+  'gbraid',
   // Facebook / Instagram
-  'fbclid', 'igshid',
+  'fbclid',
+  'igshid',
   // Twitter
   'twclid',
   // TikTok
@@ -20,23 +26,44 @@ const TRACKING_PARAMS = new Set([
   // Yandex
   'yclid',
   // Urchin Tracking Module (Standard Analytics)
-  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id', 'utm_source_platform',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'utm_id',
+  'utm_source_platform',
   // Mailchimp
-  'mc_eid', 'mc_cid',
+  'mc_eid',
+  'mc_cid',
   // Hubspot
-  '_hsenc', '_hsmi', '__hssc', '__hstc', 'hsCtaTracking',
+  '_hsenc',
+  '_hsmi',
+  '__hssc',
+  '__hstc',
+  'hsCtaTracking',
   // Marketo
   'mkt_tok',
   // Omeda
-  'oly_enc_id', 'oly_anon_id',
+  'oly_enc_id',
+  'oly_anon_id',
   // Klaviyo
   '_ke',
   // Adobe/Omniture
-  's_cid', 's_kwcid',
+  's_cid',
+  's_kwcid',
   // Matomo / Piwik
-  'pk_campaign', 'pk_kwd', 'pk_keyword', 'pk_source', 'pk_medium', 'pk_content', 'pk_cid',
+  'pk_campaign',
+  'pk_kwd',
+  'pk_keyword',
+  'pk_source',
+  'pk_medium',
+  'pk_content',
+  'pk_cid',
   // General Click IDs
-  'click_id', 'clickid', 'cid'
+  'click_id',
+  'clickid',
+  'cid'
 ])
 
 export class URLStripper {
@@ -52,7 +79,7 @@ export class URLStripper {
 
       // Collect keys to remove (iterating over searchParams directly while modifying can be problematic)
       const keysToRemove: string[] = []
-      
+
       for (const [key] of url.searchParams) {
         // Case-insensitive match for tracking parameters
         if (TRACKING_PARAMS.has(key.toLowerCase())) {

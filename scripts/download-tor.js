@@ -1,21 +1,22 @@
 'use strict'
 
-const https        = require('https')
-const fs           = require('fs')
-const path         = require('path')
-const crypto       = require('crypto')
-const zlib         = require('zlib')
+const https = require('https')
+const fs = require('fs')
+const path = require('path')
+const crypto = require('crypto')
+const zlib = require('zlib')
 const { execSync } = require('child_process')
 
-const TOR_VERSION = '15.0.15'
+const TOR_VERSION = '15.0.16'
 
 // ── Platform detection ────────────────────────────────────────────────────────
-const PLATFORM = process.env.TARGET_PLATFORM || process.platform  // win32 | linux | darwin
-const ARCH     = process.env.TARGET_ARCH     || process.arch      // x64 | arm64
+const PLATFORM = process.env.TARGET_PLATFORM || process.platform // win32 | linux | darwin
+const ARCH = process.env.TARGET_ARCH || process.arch // x64 | arm64
 
 function getBundleName() {
-  if (PLATFORM === 'win32')  return `tor-expert-bundle-windows-x86_64-${TOR_VERSION}.tar.gz`
-  if (PLATFORM === 'darwin') return `tor-expert-bundle-macos-${ARCH === 'arm64' ? 'aarch64' : 'x86_64'}-${TOR_VERSION}.tar.gz`
+  if (PLATFORM === 'win32') return `tor-expert-bundle-windows-x86_64-${TOR_VERSION}.tar.gz`
+  if (PLATFORM === 'darwin')
+    return `tor-expert-bundle-macos-${ARCH === 'arm64' ? 'aarch64' : 'x86_64'}-${TOR_VERSION}.tar.gz`
   // linux
   return `tor-expert-bundle-linux-${ARCH === 'arm64' ? 'aarch64' : 'x86_64'}-${TOR_VERSION}.tar.gz`
 }
@@ -24,14 +25,14 @@ function getTorBinaryName() {
   return PLATFORM === 'win32' ? 'tor.exe' : 'tor'
 }
 
-const BUNDLE_NAME  = getBundleName()
+const BUNDLE_NAME = getBundleName()
 const DOWNLOAD_URL = `https://dist.torproject.org/torbrowser/${TOR_VERSION}/${BUNDLE_NAME}`
-const TOR_BINARY   = getTorBinaryName()
+const TOR_BINARY = getTorBinaryName()
 
 // SHA-256 of the .tar.gz — update this when you bump TOR_VERSION.
 const EXPECTED_SHA256 = null
 
-const OUT_DIR      = path.join(__dirname, '..', 'resources', 'tor')
+const OUT_DIR = path.join(__dirname, '..', 'resources', 'tor')
 const ARCHIVE_PATH = path.join(__dirname, '..', 'resources', '_tor-bundle.tar.gz')
 
 const KEEP_PATTERNS = [
@@ -41,7 +42,7 @@ const KEEP_PATTERNS = [
   /^Tor\/.*\.so(\.\d+)*$/i,
   /^Tor\/.*\.dylib$/i,
   /^Tor\/geoip$/i,
-  /^Tor\/geoip6$/i,
+  /^Tor\/geoip6$/i
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,27 +54,39 @@ function downloadWithCurl(url, dest) {
 function downloadWithNode(url, dest) {
   return new Promise((resolve, reject) => {
     console.log(`Downloading ${url}`)
-    const file   = fs.createWriteStream(dest)
+    const file = fs.createWriteStream(dest)
     let received = 0
-    let total    = 0
+    let total = 0
 
     function get(u) {
-      https.get(u, (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) { get(res.headers.location); return }
-        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return }
-        total = parseInt(res.headers['content-length'] || '0', 10)
-        res.on('data', (chunk) => {
-          received += chunk.length
-          if (total) {
-            const pct = Math.round((received / total) * 100)
-            process.stdout.write(`\r  ${pct}% (${(received / 1024 / 1024).toFixed(1)} MB)`)
+      https
+        .get(u, (res) => {
+          if (res.statusCode === 301 || res.statusCode === 302) {
+            get(res.headers.location)
+            return
           }
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP ${res.statusCode}`))
+            return
+          }
+          total = parseInt(res.headers['content-length'] || '0', 10)
+          res.on('data', (chunk) => {
+            received += chunk.length
+            if (total) {
+              const pct = Math.round((received / total) * 100)
+              process.stdout.write(`\r  ${pct}% (${(received / 1024 / 1024).toFixed(1)} MB)`)
+            }
+          })
+          res.pipe(file)
+          file.on('finish', () => {
+            file.close()
+            console.log('')
+            resolve()
+          })
+          file.on('error', reject)
+          res.on('error', reject)
         })
-        res.pipe(file)
-        file.on('finish', () => { file.close(); console.log(''); resolve() })
-        file.on('error', reject)
-        res.on('error', reject)
-      }).on('error', (err) => reject(new Error(`Network error: ${err.message || err.code || err}`)))
+        .on('error', (err) => reject(new Error(`Network error: ${err.message || err.code || err}`)))
     }
 
     get(url)
@@ -90,9 +103,12 @@ function download(url, dest) {
 }
 
 function verifySha256(filePath, expected) {
-  if (!expected) { console.log('  Skipping SHA-256 check (EXPECTED_SHA256 not set)'); return }
+  if (!expected) {
+    console.log('  Skipping SHA-256 check (EXPECTED_SHA256 not set)')
+    return
+  }
   console.log('Verifying SHA-256...')
-  const data   = fs.readFileSync(filePath)
+  const data = fs.readFileSync(filePath)
   const actual = crypto.createHash('sha256').update(data).digest('hex')
   if (actual.toLowerCase() !== expected.toLowerCase()) {
     throw new Error(`SHA-256 mismatch!\n  expected: ${expected}\n  actual:   ${actual}`)
@@ -112,9 +128,13 @@ function extractTarGz(archivePath, outDir) {
       execSync(`tar -xzf "${archivePath}" -C "${tmpDir}"`, { stdio: 'pipe' })
 
       // Find all files in the temp dir
-      const allFiles = execSync(`find "${tmpDir}" -type f`).toString().trim().split('\n').filter(Boolean)
+      const allFiles = execSync(`find "${tmpDir}" -type f`)
+        .toString()
+        .trim()
+        .split('\n')
+        .filter(Boolean)
       console.log('  Archive contains:')
-      allFiles.forEach(f => console.log(`    ${f.replace(tmpDir, '')}`))
+      allFiles.forEach((f) => console.log(`    ${f.replace(tmpDir, '')}`))
 
       const wanted = [
         /\/tor(\.exe)?$/i,
@@ -122,12 +142,12 @@ function extractTarGz(archivePath, outDir) {
         /\/.*\.so(\.\d+)*$/i,
         /\/.*\.dylib$/i,
         /\/geoip$/i,
-        /\/geoip6$/i,
+        /\/geoip6$/i
       ]
 
       for (const file of allFiles) {
         const rel = file.replace(tmpDir, '')
-        if (wanted.some(p => p.test(rel))) {
+        if (wanted.some((p) => p.test(rel))) {
           const dst = path.join(outDir, path.basename(file))
           fs.copyFileSync(file, dst)
           console.log(`  + ${path.basename(file)}`)
@@ -144,14 +164,18 @@ function extractTarGz(archivePath, outDir) {
   // if --strip-components exceeds the archive's actual path depth.
   for (const strip of ['2', '1', '0']) {
     try {
-      execSync(`tar -xzf "${archivePath}" -C "${outDir}" --strip-components=${strip}`, { stdio: 'pipe' })
+      execSync(`tar -xzf "${archivePath}" -C "${outDir}" --strip-components=${strip}`, {
+        stdio: 'pipe'
+      })
       if (fs.existsSync(path.join(outDir, TOR_BINARY))) {
         console.log(`  Extracted via system tar (--strip-components=${strip})`)
         return Promise.resolve()
       }
       // tar exited 0 but binary not present — clean partial output and try next level
-      fs.readdirSync(outDir).forEach(f => {
-        try { fs.rmSync(path.join(outDir, f), { recursive: true, force: true }) } catch {}
+      fs.readdirSync(outDir).forEach((f) => {
+        try {
+          fs.rmSync(path.join(outDir, f), { recursive: true, force: true })
+        } catch {}
       })
     } catch {
       // tar failed — try next strip level
@@ -163,7 +187,7 @@ function extractTarGz(archivePath, outDir) {
   let buf = Buffer.alloc(0)
   let currentFile = null
   let currentSize = 0
-  let bytesLeft   = 0
+  let bytesLeft = 0
 
   tarball.on('data', (chunk) => {
     buf = Buffer.concat([buf, chunk])
@@ -174,7 +198,8 @@ function extractTarGz(archivePath, outDir) {
         buf = buf.subarray(take)
         bytesLeft -= take
         if (bytesLeft === 0 && currentFile) {
-          currentFile.end(); currentFile = null
+          currentFile.end()
+          currentFile = null
           buf = buf.subarray((512 - (currentSize % 512)) % 512)
         }
         continue
@@ -186,13 +211,14 @@ function extractTarGz(archivePath, outDir) {
       const size = parseInt(header.subarray(124, 136).toString('utf8').trim(), 8) || 0
       const type = String.fromCharCode(header[156])
       if (!name) continue
-      const keep     = KEEP_PATTERNS.some(re => re.test(name))
+      const keep = KEEP_PATTERNS.some((re) => re.test(name))
       const destPath = path.join(outDir, path.basename(name))
       if ((type === '0' || type === '') && keep && size > 0) {
         console.log(`  + ${path.basename(name)}`)
         fs.mkdirSync(path.dirname(destPath), { recursive: true })
         currentFile = fs.createWriteStream(destPath)
-        currentSize = size; bytesLeft = size
+        currentSize = size
+        bytesLeft = size
       } else {
         bytesLeft = size
       }
@@ -235,7 +261,7 @@ async function main() {
 
   const files = fs.readdirSync(OUT_DIR)
   console.log('\nFiles in resources/tor/:')
-  files.forEach(f => console.log(`  ${f}`))
+  files.forEach((f) => console.log(`  ${f}`))
 
   if (!fs.existsSync(torBin)) {
     console.error(`\nERROR: ${TOR_BINARY} not found after extraction.`)
@@ -246,7 +272,7 @@ async function main() {
   console.log(`\nDone.\n`)
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('\nFailed:', err.message)
   process.exit(1)
 })

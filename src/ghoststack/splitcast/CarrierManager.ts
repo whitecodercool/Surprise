@@ -47,7 +47,7 @@ export class CarrierManager {
   private carriers: CarrierStatus[] = []
 
   constructor() {
-    this.carriers = DEFAULT_CARRIERS.map(url => ({
+    this.carriers = DEFAULT_CARRIERS.map((url) => ({
       url,
       alive: false,
       latencyMs: -1,
@@ -60,7 +60,7 @@ export class CarrierManager {
    * @returns true if at least 3 carriers respond
    */
   async verifyCarriers(): Promise<boolean> {
-    const checks = this.carriers.slice(0, 5).map(carrier => this.checkCarrier(carrier))
+    const checks = this.carriers.slice(0, 5).map((carrier) => this.checkCarrier(carrier))
     const results = await Promise.allSettled(checks)
 
     let aliveCount = 0
@@ -78,10 +78,10 @@ export class CarrierManager {
    */
   getAliveCarriers(count: number = 5): string[] {
     return this.carriers
-      .filter(c => c.alive)
+      .filter((c) => c.alive)
       .sort((a, b) => a.latencyMs - b.latencyMs)
       .slice(0, count)
-      .map(c => c.url)
+      .map((c) => c.url)
   }
 
   /**
@@ -139,8 +139,8 @@ export class CarrierManager {
    * @returns Number of alive carriers
    */
   async refreshAll(): Promise<number> {
-    const checks = this.carriers.map(c => this.checkCarrier(c))
+    const checks = this.carriers.map((c) => this.checkCarrier(c))
     await Promise.allSettled(checks)
-    return this.carriers.filter(c => c.alive).length
+    return this.carriers.filter((c) => c.alive).length
   }
 }

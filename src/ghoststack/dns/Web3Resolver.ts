@@ -12,7 +12,7 @@ export class Web3Resolver {
   constructor() {
     // 1. Create a custom FetchRequest to force all RPC calls through our DPI Evasion engine
     const fetchReq = new FetchRequest('https://ethereum-rpc.publicnode.com')
-    
+
     fetchReq.getUrlFunc = async (req: FetchRequest, _signal?: any) => {
       const headers: Record<string, string> = {}
       for (const key in req.headers) {
@@ -30,14 +30,18 @@ export class Web3Resolver {
 
       console.log(`[Web3Resolver] 🔒 Securely querying RPC: ${req.url}`)
       const response = await GhostEngine.fetch(req.url, init)
-      
+
       const bodyBuffer = await response.arrayBuffer()
       const bodyText = new TextDecoder().decode(bodyBuffer).substring(0, 200)
-      console.log(`[Web3Resolver] RPC Response: ${response.status} ${response.statusText} - Body: ${bodyText}`)
-      
+      console.log(
+        `[Web3Resolver] RPC Response: ${response.status} ${response.statusText} - Body: ${bodyText}`
+      )
+
       // Convert standard Fetch Headers to Record
       const resHeaders: Record<string, string> = {}
-      response.headers.forEach((value, key) => { resHeaders[key] = value })
+      response.headers.forEach((value, key) => {
+        resHeaders[key] = value
+      })
 
       return {
         statusCode: response.status,
@@ -59,7 +63,7 @@ export class Web3Resolver {
 
     try {
       console.log(`[Web3Resolver] Resolving ${domain} on Ethereum blockchain...`)
-      
+
       // 1. Get the ENS Resolver contract for this domain
       const resolver = await this.provider.getResolver(domain)
       if (!resolver) {

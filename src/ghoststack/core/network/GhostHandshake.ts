@@ -97,7 +97,11 @@ class FragmentedSocket extends Duplex {
 async function rawDoHResolve(domain: string, timeout = 4000): Promise<string | null> {
   // Try Cloudflare (1.1.1.1) first, then Google (8.8.8.8)
   const servers = [
-    { ip: '1.1.1.1', path: `/dns-query?name=${encodeURIComponent(domain)}&type=A`, host: '1.1.1.1' },
+    {
+      ip: '1.1.1.1',
+      path: `/dns-query?name=${encodeURIComponent(domain)}&type=A`,
+      host: '1.1.1.1'
+    },
     { ip: '8.8.8.8', path: `/resolve?name=${encodeURIComponent(domain)}&type=A`, host: '8.8.8.8' }
   ]
 
@@ -122,14 +126,17 @@ async function rawDoHResolve(domain: string, timeout = 4000): Promise<string | n
           },
           (res) => {
             let body = ''
-            res.on('data', (chunk: Buffer) => { body += chunk.toString() })
+            res.on('data', (chunk: Buffer) => {
+              body += chunk.toString()
+            })
             res.on('end', () => {
               clearTimeout(timer)
               try {
                 const json = JSON.parse(body)
                 if (json.Status === 0 && json.Answer) {
                   for (const answer of json.Answer) {
-                    if (answer.type === 1) { // A record
+                    if (answer.type === 1) {
+                      // A record
                       resolve(answer.data)
                       return
                     }
@@ -143,11 +150,17 @@ async function rawDoHResolve(domain: string, timeout = 4000): Promise<string | n
               } catch {}
               resolve(null)
             })
-            res.on('error', () => { clearTimeout(timer); resolve(null) })
+            res.on('error', () => {
+              clearTimeout(timer)
+              resolve(null)
+            })
           }
         )
 
-        req.on('error', () => { clearTimeout(timer); resolve(null) })
+        req.on('error', () => {
+          clearTimeout(timer)
+          resolve(null)
+        })
         req.end()
       })
 
@@ -175,7 +188,12 @@ async function rawDoHResolve(domain: string, timeout = 4000): Promise<string | n
  */
 export class GhostHandshake {
   /** Strategies to try in order — different split positions and delays */
-  private static STRATEGIES: Array<{ splitPos: number; gapMs: number; name: string; suppressSNI?: boolean }> = [
+  private static STRATEGIES: Array<{
+    splitPos: number
+    gapMs: number
+    name: string
+    suppressSNI?: boolean
+  }> = [
     { splitPos: 1, gapMs: 50, name: '1B+50ms' },
     { splitPos: 5, gapMs: 100, name: '5B+100ms' },
     { splitPos: 3, gapMs: 30, name: '3B+30ms' },
@@ -253,7 +271,9 @@ export class GhostHandshake {
     // This bypasses Electron's network stack and any ISP interference with DoH.
     // Critical for ISPs like Jio that may interfere with Electron's net.request.
     if (!realIP) {
-      console.log(`[GhostStack/Handshake] Electron DoH failed for ${targetDomain}, trying raw TLS DoH...`)
+      console.log(
+        `[GhostStack/Handshake] Electron DoH failed for ${targetDomain}, trying raw TLS DoH...`
+      )
       realIP = await rawDoHResolve(targetDomain)
     }
 
@@ -264,7 +284,9 @@ export class GhostHandshake {
 
     if (!realIP) {
       // Domain genuinely doesn't exist or all DoH servers are unreachable
-      console.error(`[GhostStack/Handshake] ❌ All DoH resolvers failed for ${targetDomain}. Domain may not exist.`)
+      console.error(
+        `[GhostStack/Handshake] ❌ All DoH resolvers failed for ${targetDomain}. Domain may not exist.`
+      )
       throw new Error(`DNS resolution failed for ${targetDomain} — domain may not exist`)
     }
 

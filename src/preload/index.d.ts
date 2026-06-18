@@ -1,7 +1,7 @@
-import { FluxAPI } from '../renderer/src/types'
+import { GhostAPI } from '../renderer/src/types'
 
 declare global {
   interface Window {
-    api: FluxAPI
+    api: GhostAPI
   }
 }

@@ -5,8 +5,8 @@ import nacl from 'tweetnacl'
 // ── Tiny nacl helpers ────────────────────────────────────────────────────────
 const enc = new TextEncoder()
 const dec = new TextDecoder()
-const toB64  = (u: Uint8Array) => btoa(String.fromCharCode(...u))
-const fromB64 = (s: string) => new Uint8Array([...atob(s)].map(c => c.charCodeAt(0)))
+const toB64 = (u: Uint8Array) => btoa(String.fromCharCode(...u))
+const fromB64 = (s: string) => new Uint8Array([...atob(s)].map((c) => c.charCodeAt(0)))
 
 // ── Persistent user identity ──────────────────────────────────────────────────
 // Each user gets a curve25519 keypair generated once and saved in localStorage.
@@ -14,14 +14,16 @@ const fromB64 = (s: string) => new Uint8Array([...atob(s)].map(c => c.charCodeAt
 const IDENTITY_KEY = 'dr_identity_v1'
 
 interface Identity {
-  pubKey: string   // base64
-  privKey: string  // base64
+  pubKey: string // base64
+  privKey: string // base64
 }
 
 function getOrCreateIdentity(): Identity {
   const stored = localStorage.getItem(IDENTITY_KEY)
   if (stored) {
-    try { return JSON.parse(stored) } catch {}
+    try {
+      return JSON.parse(stored)
+    } catch {}
   }
   const kp = nacl.box.keyPair()
   const id: Identity = { pubKey: toB64(kp.publicKey), privKey: toB64(kp.secretKey) }
@@ -31,23 +33,36 @@ function getOrCreateIdentity(): Identity {
 
 function deriveHandle(pubKeyB64: string): string {
   // First 8 chars of the base64 pubkey, lowercased, prefixed with "ghost-"
-  return 'ghost-' + pubKeyB64.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase()
+  return (
+    'ghost-' +
+    pubKeyB64
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 8)
+      .toLowerCase()
+  )
 }
 
 function encrypt(text: string, key: Uint8Array): string {
   const nonce = nacl.randomBytes(nacl.secretbox.nonceLength)
-  const box   = nacl.secretbox(enc.encode(text), nonce, key)
-  return toB64(new Uint8Array(JSON.stringify({ c: toB64(box), n: toB64(nonce) })
-    .split('').map(c => c.charCodeAt(0))))
+  const box = nacl.secretbox(enc.encode(text), nonce, key)
+  return toB64(
+    new Uint8Array(
+      JSON.stringify({ c: toB64(box), n: toB64(nonce) })
+        .split('')
+        .map((c) => c.charCodeAt(0))
+    )
+  )
 }
 
 function decrypt(payload: string, key: Uint8Array): string | null {
   try {
-    const raw       = dec.decode(fromB64(payload))
-    const { c, n }  = JSON.parse(raw)
-    const opened    = nacl.secretbox.open(fromB64(c), fromB64(n), key)
+    const raw = dec.decode(fromB64(payload))
+    const { c, n } = JSON.parse(raw)
+    const opened = nacl.secretbox.open(fromB64(c), fromB64(n), key)
     return opened ? dec.decode(opened) : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 function randomRoomCode() {
@@ -55,10 +70,15 @@ function randomRoomCode() {
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 function fmtTime(ts: number) {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  return new Date(ts).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
 }
 function esc(s: string) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -78,31 +98,31 @@ interface DarkRoomPanelProps {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
-  const [phase, setPhase]             = useState<Phase>('connecting-tor')
+  const [phase, setPhase] = useState<Phase>('connecting-tor')
   const [torProgress, setTorProgress] = useState(0)
-  const [torStatus, setTorStatus]     = useState('Initializing...')
-  const [torError, setTorError]       = useState('')
+  const [torStatus, setTorStatus] = useState('Initializing...')
+  const [torError, setTorError] = useState('')
 
-  const [onionAddr, setOnionAddr]     = useState('')
+  const [onionAddr, setOnionAddr] = useState('')
 
   // Load (or generate) the user's persistent identity once (lazy init avoids re-running on every render)
   const [handleInput, setHandleInput] = useState(() => deriveHandle(getOrCreateIdentity().pubKey))
   const [inviteInput, setInviteInput] = useState('')
-  const [lobbyError, setLobbyError]   = useState('')
+  const [lobbyError, setLobbyError] = useState('')
 
-  const [myHandle, setMyHandle]         = useState('')
-  const [roomCode, setRoomCode]         = useState('')
-  const [inviteCode, setInviteCode]     = useState('')
+  const [myHandle, setMyHandle] = useState('')
+  const [roomCode, setRoomCode] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [participants, setParticipants] = useState<string[]>([])
-  const [messages, setMessages]         = useState<ChatMessage[]>([])
-  const [msgText, setMsgText]           = useState('')
-  const [copyLabel, setCopyLabel]       = useState('Copy invite')
-  const [joining, setJoining]           = useState(false)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [msgText, setMsgText] = useState('')
+  const [copyLabel, setCopyLabel] = useState('Copy invite')
+  const [joining, setJoining] = useState(false)
 
-  const wsRef       = useRef<WebSocket | null>(null)
-  const roomKeyRef  = useRef<Uint8Array | null>(null)
-  const msgEndRef   = useRef<HTMLDivElement>(null)
-  const proxyPort   = useRef<number>(0)
+  const wsRef = useRef<WebSocket | null>(null)
+  const roomKeyRef = useRef<Uint8Array | null>(null)
+  const msgEndRef = useRef<HTMLDivElement>(null)
+  const proxyPort = useRef<number>(0)
   const myHandleRef = useRef<string>('')
 
   // ── Boot: load config, start tor+proxy ───────────────────────────────────
@@ -116,7 +136,7 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
       if (cfg.onionAddr) setOnionAddr(cfg.onionAddr)
 
       if (!cfg.torFound) {
-        setTorError('Tor not found. Try reinstalling Flux or contact support.')
+        setTorError('Tor not found. Try reinstalling Ghost Browser or contact support.')
         setPhase('connecting-tor')
         return
       }
@@ -153,7 +173,7 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
 
       if (!result.ok) {
         if (result.error === 'TOR_NOT_FOUND') {
-          setTorError('Tor not found. Try reinstalling Flux or contact support.')
+          setTorError('Tor not found. Try reinstalling Ghost Browser or contact support.')
         } else if (result.error === 'NO_ONION_ADDR') {
           setPhase('setup-onion')
         } else {
@@ -167,7 +187,9 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
     }
 
     boot()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // Auto-scroll messages
@@ -179,7 +201,7 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
   const handleCreate = useCallback(() => {
     if (joining) return
     const code = randomRoomCode()
-    const key  = nacl.randomBytes(32) as Uint8Array
+    const key = nacl.randomBytes(32) as Uint8Array
     joinRoom(code, key, handleInput.trim())
   }, [handleInput, joining])
 
@@ -187,11 +209,22 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
   const handleJoin = useCallback(() => {
     if (joining) return
     const raw = inviteInput.trim()
-    if (!raw.includes(':')) { setLobbyError('Paste a full invite code (ROOMCODE:key)'); return }
+    if (!raw.includes(':')) {
+      setLobbyError('Paste a full invite code (ROOMCODE:key)')
+      return
+    }
     const [code, ...rest] = raw.split(':')
     let key: Uint8Array
-    try { key = fromB64(rest.join(':')) } catch { setLobbyError('Bad invite code'); return }
-    if (key.length !== 32) { setLobbyError('Invalid key length'); return }
+    try {
+      key = fromB64(rest.join(':'))
+    } catch {
+      setLobbyError('Bad invite code')
+      return
+    }
+    if (key.length !== 32) {
+      setLobbyError('Invalid key length')
+      return
+    }
     joinRoom(code.toUpperCase(), key, handleInput.trim())
   }, [inviteInput, handleInput, joining])
 
@@ -234,12 +267,7 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
     }
   }
 
-  function handleServerMsg(
-    msg: any,
-    code: string,
-    key: Uint8Array,
-    invite: string
-  ) {
+  function handleServerMsg(msg: any, code: string, key: Uint8Array, invite: string) {
     switch (msg.type) {
       case 'joined':
         setJoining(false)
@@ -253,14 +281,17 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
         break
 
       case 'message': {
-        if (msg.handle === myHandleRef.current) break  // already added locally on send
+        if (msg.handle === myHandleRef.current) break // already added locally on send
         const text = decrypt(msg.payload, key)
-        setMessages(prev => [...prev, {
-          handle: msg.handle,
-          text,
-          ts: msg.ts,
-          own: false,
-        }])
+        setMessages((prev) => [
+          ...prev,
+          {
+            handle: msg.handle,
+            text,
+            ts: msg.ts,
+            own: false
+          }
+        ])
         break
       }
 
@@ -279,7 +310,10 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
   }
 
   function addSystem(text: string) {
-    setMessages(prev => [...prev, { handle: '', text, ts: Date.now(), own: false, isSystem: true }])
+    setMessages((prev) => [
+      ...prev,
+      { handle: '', text, ts: Date.now(), own: false, isSystem: true }
+    ])
   }
 
   // ── Send message ──────────────────────────────────────────────────────────
@@ -291,12 +325,15 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
     const payload = encrypt(text, roomKeyRef.current)
     wsRef.current.send(JSON.stringify({ type: 'message', payload }))
 
-    setMessages(prev => [...prev, {
-      handle: myHandle,
-      text,
-      ts: Date.now(),
-      own: true,
-    }])
+    setMessages((prev) => [
+      ...prev,
+      {
+        handle: myHandle,
+        text,
+        ts: Date.now(),
+        own: true
+      }
+    ])
     setMsgText('')
   }, [msgText, myHandle])
 
@@ -345,7 +382,6 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
   return (
     <div style={S.overlay}>
       <div style={S.panel}>
-
         {/* Header */}
         <div style={S.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -353,7 +389,9 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
             <span style={S.headerTitle}>GHOST DARK ROOM</span>
             <span style={S.headerBadge}>E2E ENCRYPTED · EPHEMERAL</span>
           </div>
-          <button onClick={onClose} style={S.closeBtn} title="Close">✕</button>
+          <button onClick={onClose} style={S.closeBtn} title="Close">
+            ✕
+          </button>
         </div>
 
         {/* ── Phase: setup onion addr ── */}
@@ -362,8 +400,9 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
             <div style={S.setupBox}>
               <div style={S.setupTitle}>SERVER UNAVAILABLE</div>
               <div style={S.setupDesc}>
-                Dark Room server configuration is missing.<br/>
-                Please reinstall Flux to restore it.
+                Dark Room server configuration is missing.
+                <br />
+                Please reinstall Ghost Browser to restore it.
               </div>
             </div>
           </div>
@@ -378,7 +417,9 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
               </div>
               {torError ? (
                 <>
-                  <div style={{ color: 'var(--color-error, #ff4466)', marginBottom: 12, fontSize: 13 }}>
+                  <div
+                    style={{ color: 'var(--color-error, #ff4466)', marginBottom: 12, fontSize: 13 }}
+                  >
                     {torError}
                   </div>
                 </>
@@ -403,18 +444,31 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
             <div style={{ ...S.setupBox, width: 360 }}>
               <div style={S.setupTitle}>ENTER DARK ROOM</div>
               <div style={S.field}>
-                <label style={S.label}>YOUR HANDLE <span style={{ color: 'var(--color-accent)', fontSize: 9 }}>· derived from your key</span></label>
+                <label style={S.label}>
+                  YOUR HANDLE{' '}
+                  <span style={{ color: 'var(--color-accent)', fontSize: 9 }}>
+                    · derived from your key
+                  </span>
+                </label>
                 <input
                   style={S.input}
                   placeholder="ghost-XXXX"
                   value={handleInput}
-                  onChange={e => setHandleInput(e.target.value)}
+                  onChange={(e) => setHandleInput(e.target.value)}
                   maxLength={20}
                   spellCheck={false}
                 />
               </div>
 
-              <button style={{ ...S.btnPrimary, opacity: joining ? 0.5 : 1, cursor: joining ? 'not-allowed' : 'pointer' }} onClick={handleCreate} disabled={joining}>
+              <button
+                style={{
+                  ...S.btnPrimary,
+                  opacity: joining ? 0.5 : 1,
+                  cursor: joining ? 'not-allowed' : 'pointer'
+                }}
+                onClick={handleCreate}
+                disabled={joining}
+              >
                 {joining ? 'Connecting...' : 'Create new room'}
               </button>
 
@@ -426,18 +480,34 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
                   style={S.input}
                   placeholder="ABCD1234:base64key..."
                   value={inviteInput}
-                  onChange={e => setInviteInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && !joining && handleJoin()}
+                  onChange={(e) => setInviteInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !joining && handleJoin()}
                   spellCheck={false}
                 />
               </div>
-              <button style={{ ...S.btnSecondary, opacity: joining ? 0.5 : 1, cursor: joining ? 'not-allowed' : 'pointer' }} onClick={handleJoin} disabled={joining}>
+              <button
+                style={{
+                  ...S.btnSecondary,
+                  opacity: joining ? 0.5 : 1,
+                  cursor: joining ? 'not-allowed' : 'pointer'
+                }}
+                onClick={handleJoin}
+                disabled={joining}
+              >
                 {joining ? 'Connecting...' : 'Join room'}
               </button>
 
               {lobbyError && <div style={S.errorMsg}>{lobbyError}</div>}
 
-              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--color-border-subtle)', fontSize: 11, color: 'var(--color-text-muted)' }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  paddingTop: 12,
+                  borderTop: '1px solid var(--color-border-subtle)',
+                  fontSize: 11,
+                  color: 'var(--color-text-muted)'
+                }}
+              >
                 Connected via Tor · Server: {onionAddr.slice(0, 16)}…
               </div>
             </div>
@@ -447,7 +517,6 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
         {/* ── Phase: chat ── */}
         {phase === 'chat' && (
           <div style={S.chatLayout}>
-
             {/* Sidebar */}
             <div style={S.chatSidebar}>
               <div style={S.sideSection}>
@@ -462,18 +531,47 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
 
               <div style={S.sideSection}>
                 <div style={S.sideLabel}>INVITE CODE</div>
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', wordBreak: 'break-all', marginBottom: 6, lineHeight: 1.5, maxHeight: 50, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--color-text-muted)',
+                    wordBreak: 'break-all',
+                    marginBottom: 6,
+                    lineHeight: 1.5,
+                    maxHeight: 50,
+                    overflow: 'hidden'
+                  }}
+                >
                   {inviteCode}
                 </div>
-                <button style={S.btnSmall} onClick={copyInvite}>{copyLabel}</button>
+                <button style={S.btnSmall} onClick={copyInvite}>
+                  {copyLabel}
+                </button>
               </div>
 
               <div style={S.sideSection}>
                 <div style={S.sideLabel}>PARTICIPANTS ({participants.length})</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 120, overflowY: 'auto' }}>
-                  {participants.map(h => (
-                    <div key={h} style={{ fontSize: 12, color: h === myHandle ? 'var(--color-accent)' : 'var(--color-text-secondary)', padding: '2px 0' }}>
-                      {h === myHandle ? '▶ ' : '  '}{h}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    maxHeight: 120,
+                    overflowY: 'auto'
+                  }}
+                >
+                  {participants.map((h) => (
+                    <div
+                      key={h}
+                      style={{
+                        fontSize: 12,
+                        color:
+                          h === myHandle ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                        padding: '2px 0'
+                      }}
+                    >
+                      {h === myHandle ? '▶ ' : '  '}
+                      {h}
                     </div>
                   ))}
                 </div>
@@ -483,7 +581,9 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
                 <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginBottom: 8 }}>
                   Via Tor · E2E encrypted
                 </div>
-                <button style={S.btnDanger} onClick={panic}>Leave room</button>
+                <button style={S.btnDanger} onClick={panic}>
+                  Leave room
+                </button>
               </div>
             </div>
 
@@ -494,17 +594,33 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
                   <div key={i} style={m.isSystem ? S.sysMsg : m.own ? S.ownMsg : S.otherMsg}>
                     {!m.isSystem && (
                       <div style={S.msgHeader}>
-                        <span style={{ color: m.own ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontSize: 11 }}>
+                        <span
+                          style={{
+                            color: m.own ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                            fontSize: 11
+                          }}
+                        >
                           {m.handle}
                         </span>
-                        <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{fmtTime(m.ts)}</span>
+                        <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                          {fmtTime(m.ts)}
+                        </span>
                       </div>
                     )}
                     <div style={m.isSystem ? {} : S.msgBody}>
-                      {m.text === null
-                        ? <span style={{ color: 'var(--color-error, #ff4466)', fontStyle: 'italic', fontSize: 12 }}>[decryption failed]</span>
-                        : esc(m.text)
-                      }
+                      {m.text === null ? (
+                        <span
+                          style={{
+                            color: 'var(--color-error, #ff4466)',
+                            fontStyle: 'italic',
+                            fontSize: 12
+                          }}
+                        >
+                          [decryption failed]
+                        </span>
+                      ) : (
+                        esc(m.text)
+                      )}
                     </div>
                   </div>
                 ))}
@@ -516,17 +632,23 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
                   style={S.msgInput}
                   placeholder="Message (encrypted before sending)..."
                   value={msgText}
-                  onChange={e => setMsgText(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+                  onChange={(e) => setMsgText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      sendMessage()
+                    }
+                  }}
                   maxLength={2000}
                   spellCheck={false}
                 />
-                <button style={S.sendBtn} onClick={sendMessage}>Send</button>
+                <button style={S.sendBtn} onClick={sendMessage}>
+                  Send
+                </button>
               </div>
             </div>
           </div>
         )}
-
       </div>
     </div>
   )
@@ -541,7 +663,7 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'stretch',
     justifyContent: 'flex-end',
-    pointerEvents: 'none',
+    pointerEvents: 'none'
   },
   panel: {
     width: 680,
@@ -551,7 +673,7 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     pointerEvents: 'all',
-    boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
+    boxShadow: '-8px 0 32px rgba(0,0,0,0.5)'
   },
   header: {
     display: 'flex',
@@ -560,24 +682,24 @@ const S: Record<string, React.CSSProperties> = {
     padding: '12px 16px',
     borderBottom: '1px solid var(--color-border-subtle)',
     background: 'var(--color-bg-primary, #141414)',
-    flexShrink: 0,
+    flexShrink: 0
   },
   headerIcon: {
     fontSize: 16,
-    color: 'var(--color-accent)',
+    color: 'var(--color-accent)'
   },
   headerTitle: {
     fontSize: 13,
     fontWeight: 600,
     letterSpacing: 2,
     color: 'var(--color-text-primary)',
-    fontFamily: 'monospace',
+    fontFamily: 'monospace'
   },
   headerBadge: {
     fontSize: 10,
     color: 'var(--color-text-muted)',
     letterSpacing: 1,
-    fontFamily: 'monospace',
+    fontFamily: 'monospace'
   },
   closeBtn: {
     background: 'none',
@@ -586,20 +708,20 @@ const S: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 14,
     padding: '4px 8px',
-    borderRadius: 6,
+    borderRadius: 6
   },
   centered: {
     flex: 1,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 24
   },
   setupBox: {
     width: 340,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 12
   },
   setupTitle: {
     fontSize: 13,
@@ -607,42 +729,42 @@ const S: Record<string, React.CSSProperties> = {
     letterSpacing: 2,
     color: 'var(--color-text-primary)',
     fontFamily: 'monospace',
-    marginBottom: 4,
+    marginBottom: 4
   },
   setupDesc: {
     fontSize: 12,
     color: 'var(--color-text-muted)',
-    lineHeight: 1.6,
+    lineHeight: 1.6
   },
   torIcon: {
     fontSize: 32,
     color: 'var(--color-accent)',
     textAlign: 'center',
-    animation: 'spin 4s linear infinite',
+    animation: 'spin 4s linear infinite'
   },
   progressTrack: {
     height: 4,
     background: 'var(--color-border-subtle)',
     borderRadius: 2,
     overflow: 'hidden',
-    marginTop: 8,
+    marginTop: 8
   },
   progressFill: {
     height: '100%',
     background: 'var(--color-accent)',
     borderRadius: 2,
-    transition: 'width 0.4s ease',
+    transition: 'width 0.4s ease'
   },
   field: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 5,
+    gap: 5
   },
   label: {
     fontSize: 11,
     color: 'var(--color-text-muted)',
     letterSpacing: 1,
-    fontFamily: 'monospace',
+    fontFamily: 'monospace'
   },
   input: {
     background: 'var(--color-bg-primary, #141414)',
@@ -654,7 +776,7 @@ const S: Record<string, React.CSSProperties> = {
     fontFamily: 'monospace',
     outline: 'none',
     width: '100%',
-    boxSizing: 'border-box',
+    boxSizing: 'border-box'
   },
   btnPrimary: {
     background: 'var(--color-accent)',
@@ -665,7 +787,7 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
-    width: '100%',
+    width: '100%'
   },
   btnSecondary: {
     background: 'transparent',
@@ -675,7 +797,7 @@ const S: Record<string, React.CSSProperties> = {
     padding: '9px 14px',
     fontSize: 13,
     cursor: 'pointer',
-    width: '100%',
+    width: '100%'
   },
   btnSmall: {
     background: 'transparent',
@@ -685,7 +807,7 @@ const S: Record<string, React.CSSProperties> = {
     padding: '4px 10px',
     fontSize: 11,
     cursor: 'pointer',
-    fontFamily: 'monospace',
+    fontFamily: 'monospace'
   },
   btnDanger: {
     background: 'transparent',
@@ -697,13 +819,13 @@ const S: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     width: '100%',
     fontFamily: 'monospace',
-    letterSpacing: 1,
+    letterSpacing: 1
   },
   dividerLine: {
     fontSize: 11,
     color: 'var(--color-text-muted)',
     textAlign: 'center',
-    margin: '4px 0',
+    margin: '4px 0'
   },
   errorMsg: {
     fontSize: 12,
@@ -711,14 +833,14 @@ const S: Record<string, React.CSSProperties> = {
     padding: '6px 10px',
     border: '1px solid var(--color-error, #ff4466)',
     borderRadius: 5,
-    background: 'rgba(255,68,102,0.06)',
+    background: 'rgba(255,68,102,0.06)'
   },
 
   // Chat layout
   chatLayout: {
     flex: 1,
     display: 'flex',
-    overflow: 'hidden',
+    overflow: 'hidden'
   },
   chatSidebar: {
     width: 180,
@@ -727,31 +849,31 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    flexShrink: 0,
+    flexShrink: 0
   },
   sideSection: {
     marginBottom: 16,
     paddingBottom: 16,
-    borderBottom: '1px solid var(--color-border-subtle)',
+    borderBottom: '1px solid var(--color-border-subtle)'
   },
   sideLabel: {
     fontSize: 10,
     color: 'var(--color-text-muted)',
     letterSpacing: 1,
     fontFamily: 'monospace',
-    marginBottom: 5,
+    marginBottom: 5
   },
   sideValue: {
     fontSize: 12,
     color: 'var(--color-accent)',
     fontFamily: 'monospace',
-    wordBreak: 'break-all',
+    wordBreak: 'break-all'
   },
   chatMain: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    overflow: 'hidden',
+    overflow: 'hidden'
   },
   messageList: {
     flex: 1,
@@ -759,14 +881,14 @@ const S: Record<string, React.CSSProperties> = {
     padding: '14px 16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 8
   },
   sysMsg: {
     textAlign: 'center',
     fontSize: 11,
     color: 'var(--color-text-muted)',
     fontFamily: 'monospace',
-    padding: '3px 0',
+    padding: '3px 0'
   },
   ownMsg: {
     alignSelf: 'flex-end',
@@ -774,7 +896,7 @@ const S: Record<string, React.CSSProperties> = {
     padding: '8px 12px',
     background: 'var(--color-accent-subtle, rgba(100,200,255,0.08))',
     borderRadius: '12px 12px 2px 12px',
-    border: '1px solid var(--color-accent-muted, rgba(100,200,255,0.2))',
+    border: '1px solid var(--color-accent-muted, rgba(100,200,255,0.2))'
   },
   otherMsg: {
     alignSelf: 'flex-start',
@@ -782,25 +904,25 @@ const S: Record<string, React.CSSProperties> = {
     padding: '8px 12px',
     background: 'var(--color-bg-tertiary, #1e1e24)',
     borderRadius: '12px 12px 12px 2px',
-    border: '1px solid var(--color-border-subtle)',
+    border: '1px solid var(--color-border-subtle)'
   },
   msgHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     gap: 10,
-    marginBottom: 4,
+    marginBottom: 4
   },
   msgBody: {
     fontSize: 13,
     color: 'var(--color-text-primary)',
     lineHeight: 1.5,
     wordBreak: 'break-word',
-    whiteSpace: 'pre-wrap',
+    whiteSpace: 'pre-wrap'
   },
   inputRow: {
     display: 'flex',
     borderTop: '1px solid var(--color-border-subtle)',
-    flexShrink: 0,
+    flexShrink: 0
   },
   msgInput: {
     flex: 1,
@@ -810,7 +932,7 @@ const S: Record<string, React.CSSProperties> = {
     padding: '13px 16px',
     fontSize: 13,
     color: 'var(--color-text-primary)',
-    fontFamily: 'inherit',
+    fontFamily: 'inherit'
   },
   sendBtn: {
     background: 'var(--color-accent)',
@@ -820,6 +942,6 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
-    flexShrink: 0,
-  },
+    flexShrink: 0
+  }
 }

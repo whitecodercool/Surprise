@@ -72,7 +72,7 @@ export class ResponseAssembler {
 
     // Sort by sequence number and concatenate
     const sorted = Array.from(fragments.values()).sort((a, b) => a.sequence - b.sequence)
-    const buffers = sorted.map(f => f.data)
+    const buffers = sorted.map((f) => f.data)
 
     return {
       success: true,

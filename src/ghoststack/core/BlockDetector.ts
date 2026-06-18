@@ -1,4 +1,3 @@
-
 /**
  * GhostStack Block Detector
  * Automatically identifies the type of network block affecting a request.
@@ -40,7 +39,7 @@ const FIREWALL_SIGNATURES = [
 /** Known public Certificate Authority issuers (partial list for SSL interception detection) */
 const KNOWN_PUBLIC_CAS = [
   'DigiCert',
-  'Let\'s Encrypt',
+  "Let's Encrypt",
   'Comodo',
   'Sectigo',
   'GlobalSign',
@@ -192,7 +191,10 @@ export async function detectBlock(
     }
 
     // SIGNATURE 6 — Silent drop
-    if (errorDescription === 'ERR_EMPTY_RESPONSE' || errorDescription === 'ERR_CONNECTION_TIMED_OUT') {
+    if (
+      errorDescription === 'ERR_EMPTY_RESPONSE' ||
+      errorDescription === 'ERR_CONNECTION_TIMED_OUT'
+    ) {
       profile.blockType = 'SILENT_DROP'
       profile.networkSignature = errorDescription
       if (dnsResult.status === 'fulfilled' && dnsResult.value) {
@@ -241,9 +243,7 @@ async function checkFirewallPage(body?: string): Promise<string | null> {
  * @param domain - Domain to check
  * @returns DNS comparison result
  */
-async function checkDNSHijack(
-  domain: string
-): Promise<{
+async function checkDNSHijack(domain: string): Promise<{
   localIP: string | null
   realIP: string | null
   type: 'hijacked' | 'blocked' | 'ok'

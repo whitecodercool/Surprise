@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 const api = {
   // Tab management
   createTab: (url: string): Promise<string> => ipcRenderer.invoke('tab:create', url),
+  getTabs: (): Promise<{ tabs: any[]; activeTabId: string | null }> =>
+    ipcRenderer.invoke('tabs:get'),
   closeTab: (id: string): void => ipcRenderer.send('tab:close', id),
   switchTab: (id: string): void => ipcRenderer.send('tab:switch', id),
   navigateTo: (id: string, url: string): void => ipcRenderer.send('tab:navigate', id, url),
@@ -51,7 +53,8 @@ const api = {
   // ─── GhostStack API ───
   ghoststackGetStatus: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-status'),
   ghoststackGetSettings: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-settings'),
-  ghoststackUpdateSettings: (settings: any): void => ipcRenderer.send('ghoststack:update-settings', settings),
+  ghoststackUpdateSettings: (settings: any): void =>
+    ipcRenderer.send('ghoststack:update-settings', settings),
   ghoststackRescanNetwork: (): Promise<any> => ipcRenderer.invoke('ghoststack:rescan-network'),
   ghoststackGetNetworkEnv: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-network-env'),
   onGhoststackStatusChanged: (callback: (_status: any) => void): void => {
@@ -67,23 +70,32 @@ const api = {
   },
 
   // GhostStack Privacy
-  ghoststackGetPrivacySettings: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-privacy-settings'),
-  ghoststackUpdatePrivacySettings: (settings: any): void => ipcRenderer.send('ghoststack:update-privacy-settings', settings),
-  ghoststackSetPrivacyLevel: (level: string): void => ipcRenderer.send('ghoststack:set-privacy-level', level),
+  ghoststackGetPrivacySettings: (): Promise<any> =>
+    ipcRenderer.invoke('ghoststack:get-privacy-settings'),
+  ghoststackUpdatePrivacySettings: (settings: any): void =>
+    ipcRenderer.send('ghoststack:update-privacy-settings', settings),
+  ghoststackSetPrivacyLevel: (level: string): void =>
+    ipcRenderer.send('ghoststack:set-privacy-level', level),
   ghoststackTestFingerprint: (): Promise<any> => ipcRenderer.invoke('ghoststack:test-fingerprint'),
   ghoststackClearAllData: (): void => ipcRenderer.send('ghoststack:clear-all-data'),
 
   // GhostStack Blocking
-  ghoststackGetBlockingStats: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-blocking-stats'),
-  ghoststackGetBlockingSettings: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-blocking-settings'),
-  ghoststackUpdateBlockingSettings: (settings: any): void => ipcRenderer.send('ghoststack:update-blocking-settings', settings),
-  ghoststackAddAllowlist: (domain: string): void => ipcRenderer.send('ghoststack:add-allowlist', domain),
-  ghoststackRemoveAllowlist: (domain: string): void => ipcRenderer.send('ghoststack:remove-allowlist', domain),
+  ghoststackGetBlockingStats: (): Promise<any> =>
+    ipcRenderer.invoke('ghoststack:get-blocking-stats'),
+  ghoststackGetBlockingSettings: (): Promise<any> =>
+    ipcRenderer.invoke('ghoststack:get-blocking-settings'),
+  ghoststackUpdateBlockingSettings: (settings: any): void =>
+    ipcRenderer.send('ghoststack:update-blocking-settings', settings),
+  ghoststackAddAllowlist: (domain: string): void =>
+    ipcRenderer.send('ghoststack:add-allowlist', domain),
+  ghoststackRemoveAllowlist: (domain: string): void =>
+    ipcRenderer.send('ghoststack:remove-allowlist', domain),
   ghoststackGetAllowlist: (): Promise<string[]> => ipcRenderer.invoke('ghoststack:get-allowlist'),
 
   // GhostStack DNS
   ghoststackGetDNSSettings: (): Promise<any> => ipcRenderer.invoke('ghoststack:get-dns-settings'),
-  ghoststackUpdateDNSSettings: (settings: any): void => ipcRenderer.send('ghoststack:update-dns-settings', settings),
+  ghoststackUpdateDNSSettings: (settings: any): void =>
+    ipcRenderer.send('ghoststack:update-dns-settings', settings),
   ghoststackFlushDNSCache: (): Promise<boolean> => ipcRenderer.invoke('ghoststack:flush-dns-cache'),
   ghoststackDNSLeakTest: (): Promise<any> => ipcRenderer.invoke('ghoststack:dns-leak-test'),
 
@@ -96,6 +108,16 @@ const api = {
     ipcRenderer.on('darkroom:tor-status', (_e, data) => cb(data))
   },
 
+  // ── Context Menus ──
+  showKebabMenu: (currentTheme: string): void => ipcRenderer.send('menu:kebab:show', currentTheme),
+  onMenuAction: (callback: (action: string) => void): void => {
+    ipcRenderer.removeAllListeners('menu:action')
+    ipcRenderer.on('menu:action', (_event, action) => callback(action))
+  },
+  onThemeChange: (callback: (theme: string) => void): void => {
+    ipcRenderer.removeAllListeners('menu:theme-change')
+    ipcRenderer.on('menu:theme-change', (_event, theme) => callback(theme))
+  }
 }
 
 if (process.contextIsolated) {

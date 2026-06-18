@@ -1,6 +1,7 @@
-import { BaseWindow, WebContentsView } from 'electron'
+import { BaseWindow, WebContentsView, Menu, clipboard } from 'electron'
 import { WindowManager } from './windowManager'
 import type { GhostStackOrchestrator } from '../ghoststack/core/GhostStackOrchestrator'
+import { createWindow } from './index'
 
 interface ManagedTab {
   id: string
@@ -88,7 +89,7 @@ export class TabManager {
     })
 
     view.webContents.on('console-message', (_event, _level, message, _line, _sourceId) => {
-      console.log(`[Renderer ${id}] ${message}`);
+      console.log(`[Renderer ${id}] ${message}`)
     })
 
     // Intercept popups and open them as new tabs
@@ -102,7 +103,7 @@ export class TabManager {
       if (!url.startsWith('data:') && !url.includes('about:blank')) {
         managedTab.intendedUrl = url
       }
-      
+
       // Upgrade Web3 Domains to GhostProtocol
       try {
         const parsedUrl = new URL(url)
@@ -145,21 +146,33 @@ export class TabManager {
     view.webContents.on('will-redirect', async (event, url, _isInPlace, isMainFrame) => {
       if (!isMainFrame) return
       const lowerUrl = url.toLowerCase()
-      const isFirewallRedirect = ['block', 'sophos', 'webcat', 'zscaler', 'fortiguard', 'cisco', 'umbrella', 'policy', 'blocked'].some(sig => lowerUrl.includes(sig))
+      const isFirewallRedirect = [
+        'block',
+        'sophos',
+        'webcat',
+        'zscaler',
+        'fortiguard',
+        'cisco',
+        'umbrella',
+        'policy',
+        'blocked'
+      ].some((sig) => lowerUrl.includes(sig))
 
       // Detect firewall vendor from redirect URL for telemetry
       if (isFirewallRedirect) {
         if (lowerUrl.includes('sophos')) managedTab.firewallVendor = 'Sophos'
         else if (lowerUrl.includes('zscaler')) managedTab.firewallVendor = 'Zscaler'
-        else if (lowerUrl.includes('fortiguard') || lowerUrl.includes('webcat')) managedTab.firewallVendor = 'Fortinet'
-        else if (lowerUrl.includes('cisco') || lowerUrl.includes('umbrella')) managedTab.firewallVendor = 'Cisco Umbrella'
+        else if (lowerUrl.includes('fortiguard') || lowerUrl.includes('webcat'))
+          managedTab.firewallVendor = 'Fortinet'
+        else if (lowerUrl.includes('cisco') || lowerUrl.includes('umbrella'))
+          managedTab.firewallVendor = 'Cisco Umbrella'
         else managedTab.firewallVendor = 'Unknown Firewall'
       }
-      
+
       if (isFirewallRedirect && redirectRetries < MAX_REDIRECTS) {
         event.preventDefault()
         redirectRetries++
-        
+
         try {
           // Extract the REAL blocked URL from the Sophos redirect parameter
           let blockedUrl = managedTab.intendedUrl
@@ -175,7 +188,7 @@ export class TabManager {
               }
             }
           } catch {}
-          
+
           const domain = new URL(blockedUrl).hostname
           // Stage 1: GhostProtocol (Deep Native Node.js Evasion)
           // Chromium strictly sanitizes network streams, making native DPI evasion impossible against hardened MITM.
@@ -183,11 +196,12 @@ export class TabManager {
           // It manually constructs TLS/HTTP bytes to inject trailing dots (GhostSNI and GhostDot), completely
           // blinding the firewall's keyword filters while rendering natively in the browser.
           if (redirectRetries === 1) {
-            console.log(`[GhostStack] Attempting GhostProtocol bypass (Node.js Engine) for ${domain}`)
+            console.log(
+              `[GhostStack] Attempting GhostProtocol bypass (Node.js Engine) for ${domain}`
+            )
             const ghostUrl = blockedUrl.replace(/^https?:\/\//, 'ghost://')
             view.webContents.loadURL(ghostUrl)
-          }
-          else {
+          } else {
             console.log(`[GhostStack] ✗ All evasion algorithms failed. Site is deeply blocked.`)
             this.sendToUI('tab:updated', id, { isLoading: false })
             const bp = this.ghostStack.getSessionCache()?.getBlockProfile(domain) as any
@@ -248,8 +262,8 @@ export class TabManager {
       const spoofScript = this.ghostStack.getFingerprintShield().getSpoofScript()
       if (spoofScript) {
         view.webContents.executeJavaScript(spoofScript).catch((err) => {
-          console.error('[GhostStack] Failed to inject fingerprint shield:', err);
-        });
+          console.error('[GhostStack] Failed to inject fingerprint shield:', err)
+        })
       }
     })
 
@@ -282,7 +296,9 @@ export class TabManager {
             view.webContents.loadURL(validatedURL)
           } else if (!validatedURL.startsWith('ghost://') && !validatedURL.includes('127.0.0.1')) {
             // Native bypass failed (or wasn't attempted). Fallback to deep GhostProtocol Node.js relay!
-            console.log(`[GhostStack] Native engines failed. Attempting GhostProtocol for ${domain}`)
+            console.log(
+              `[GhostStack] Native engines failed. Attempting GhostProtocol for ${domain}`
+            )
             this.ghostStack.setGhostProtocolActive(domain)
             const ghostUrl = validatedURL.replace(/^https?:\/\//, 'ghost://')
             view.webContents.loadURL(ghostUrl)
@@ -304,8 +320,42 @@ export class TabManager {
       }
     })
 
+    view.webContents.on('context-menu', (_event, params) => {
+      const template: any[] = []
+
+      if (params.linkURL) {
+        template.push({
+          label: 'Open link in new tab',
+          click: () => {
+            this.createTab(params.linkURL)
+          }
+        })
+        template.push({
+          label: 'Open link in new window',
+          click: () => {
+            createWindow(params.linkURL)
+          }
+        })
+        template.push({
+          label: 'Copy link',
+          click: () => {
+            clipboard.writeText(params.linkURL)
+          }
+        })
+      }
+
+      template.push({
+        label: 'Copy',
+        role: 'copy',
+        enabled: params.editFlags.canCopy
+      })
+
+      const contextMenu = Menu.buildFromTemplate(template)
+      contextMenu.popup({ window: this.window })
+    })
+
     // Load the URL
-    if (normalizedUrl === 'flux://newtab') {
+    if (normalizedUrl === 'ghost://newtab') {
       view.webContents.loadURL('about:blank').catch(() => {})
     } else {
       view.webContents.loadURL(normalizedUrl).catch((e) => {
@@ -331,6 +381,36 @@ export class TabManager {
 
   getTab(id: string): ManagedTab | undefined {
     return this.tabs.get(id)
+  }
+
+  getTabsState(): { tabs: any[]; activeTabId: string | null } {
+    const serializedTabs = Array.from(this.tabs.values()).map((tab) => ({
+      id: tab.id,
+      title: tab.title,
+      url: tab.url,
+      favicon: '',
+      isLoading: tab.view.webContents.isLoading(),
+      canGoBack: tab.view.webContents.navigationHistory.canGoBack(),
+      canGoForward: tab.view.webContents.navigationHistory.canGoForward(),
+      isSecure: tab.url.startsWith('https://'),
+      isPinned: tab.isPinned,
+      isMuted: tab.view.webContents.isAudioMuted(),
+      lastAccessed: tab.lastAccessed
+    }))
+    return {
+      tabs: serializedTabs,
+      activeTabId: this.activeTabId
+    }
+  }
+
+  hasWebContents(sender: any): boolean {
+    if (!sender || typeof sender.id !== 'number') return false
+    for (const tab of this.tabs.values()) {
+      if (tab.view.webContents.id === sender.id) {
+        return true
+      }
+    }
+    return false
   }
 
   getTabByWebContentsId(wcId: number): ManagedTab | undefined {
@@ -417,7 +497,7 @@ export class TabManager {
     tab.url = normalizedUrl
     tab.intendedUrl = normalizedUrl
 
-    if (normalizedUrl === 'flux://newtab') {
+    if (normalizedUrl === 'ghost://newtab') {
       tab.view.webContents.loadURL('about:blank')
     } else {
       tab.view.webContents.loadURL(normalizedUrl).catch((e) => {
@@ -469,7 +549,7 @@ export class TabManager {
 
   positionTabs(): void {
     const sidebarWidth = this.windowManager.getSidebarWidth()
-    const toolbarHeight = 52
+    const toolbarHeight = 88 // TopTabBar (40px) + Toolbar (48px)
     const bounds = this.window.getContentBounds()
 
     const contentX = sidebarWidth
@@ -479,7 +559,7 @@ export class TabManager {
 
     if (this.isOverlayActive) {
       // Hide active tabs by moving them off-screen when a UI overlay is open
-      this.tabs.forEach(tab => {
+      this.tabs.forEach((tab) => {
         tab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
       })
       return
@@ -489,12 +569,16 @@ export class TabManager {
       if (this.activeTabId) {
         const tab = this.tabs.get(this.activeTabId)
         if (tab) {
-          tab.view.setBounds({
-            x: contentX,
-            y: contentY,
-            width: Math.max(contentWidth, 100),
-            height: Math.max(contentHeight, 100)
-          })
+          if (tab.url === 'ghost://newtab' || tab.url === 'about:blank') {
+            tab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
+          } else {
+            tab.view.setBounds({
+              x: contentX,
+              y: contentY,
+              width: Math.max(contentWidth, 100),
+              height: Math.max(contentHeight, 100)
+            })
+          }
         }
       }
     } else {
@@ -504,38 +588,54 @@ export class TabManager {
       if (this.splitMode === 'vertical') {
         const halfWidth = Math.floor(contentWidth / 2)
         if (primaryTab) {
-          primaryTab.view.setBounds({
-            x: contentX,
-            y: contentY,
-            width: halfWidth - 1,
-            height: Math.max(contentHeight, 100)
-          })
+          if (primaryTab.url === 'ghost://newtab' || primaryTab.url === 'about:blank') {
+            primaryTab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
+          } else {
+            primaryTab.view.setBounds({
+              x: contentX,
+              y: contentY,
+              width: halfWidth - 1,
+              height: Math.max(contentHeight, 100)
+            })
+          }
         }
         if (secondaryTab) {
-          secondaryTab.view.setBounds({
-            x: contentX + halfWidth + 1,
-            y: contentY,
-            width: contentWidth - halfWidth - 1,
-            height: Math.max(contentHeight, 100)
-          })
+          if (secondaryTab.url === 'ghost://newtab' || secondaryTab.url === 'about:blank') {
+            secondaryTab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
+          } else {
+            secondaryTab.view.setBounds({
+              x: contentX + halfWidth + 1,
+              y: contentY,
+              width: contentWidth - halfWidth - 1,
+              height: Math.max(contentHeight, 100)
+            })
+          }
         }
       } else {
         const halfHeight = Math.floor(contentHeight / 2)
         if (primaryTab) {
-          primaryTab.view.setBounds({
-            x: contentX,
-            y: contentY,
-            width: Math.max(contentWidth, 100),
-            height: halfHeight - 1
-          })
+          if (primaryTab.url === 'ghost://newtab' || primaryTab.url === 'about:blank') {
+            primaryTab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
+          } else {
+            primaryTab.view.setBounds({
+              x: contentX,
+              y: contentY,
+              width: Math.max(contentWidth, 100),
+              height: halfHeight - 1
+            })
+          }
         }
         if (secondaryTab) {
-          secondaryTab.view.setBounds({
-            x: contentX,
-            y: contentY + halfHeight + 1,
-            width: Math.max(contentWidth, 100),
-            height: contentHeight - halfHeight - 1
-          })
+          if (secondaryTab.url === 'ghost://newtab' || secondaryTab.url === 'about:blank') {
+            secondaryTab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
+          } else {
+            secondaryTab.view.setBounds({
+              x: contentX,
+              y: contentY + halfHeight + 1,
+              width: Math.max(contentWidth, 100),
+              height: contentHeight - halfHeight - 1
+            })
+          }
         }
       }
     }
@@ -548,7 +648,7 @@ export class TabManager {
   }
 
   private normalizeUrl(url: string): string {
-    if (url === 'flux://newtab' || url === 'about:blank') return url
+    if (url === 'ghost://newtab' || url === 'about:blank') return url
     if (/^(https?|ghost|data|blob):/i.test(url)) return url
     if (/^[^\s]+\.[^\s]+$/.test(url) && !url.includes(' ')) {
       // Automatically use GhostProtocol for Web3 domains

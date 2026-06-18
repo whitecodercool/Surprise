@@ -69,20 +69,20 @@ export default function SidebarSection({
               opacity: 0.4
             }}
           >
-            <path d="M2 3l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path
+              d="M2 3l2 2 2-2"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
-        {action && !collapsed && (
-          <div className="no-drag animate-fade-in">{action}</div>
-        )}
+        {action && !collapsed && <div className="no-drag animate-fade-in">{action}</div>}
       </div>
 
       {/* Content */}
-      {!collapsed && (
-        <div className="animate-fade-in px-1.5">
-          {children}
-        </div>
-      )}
+      {!collapsed && <div className="animate-fade-in px-1.5">{children}</div>}
     </div>
   )
 }

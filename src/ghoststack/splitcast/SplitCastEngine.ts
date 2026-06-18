@@ -114,12 +114,12 @@ export class SplitCastEngine {
         resolve(result)
       }
 
-      const timer = setTimeout(() => finish(false), 8000)  // bug 3: destroy on timeout
+      const timer = setTimeout(() => finish(false), 8000) // bug 3: destroy on timeout
 
       try {
         // Create raw TCP socket
         const s = new net.Socket()
-        socket = s  // expose to finish() for cleanup
+        socket = s // expose to finish() for cleanup
         s.setNoDelay(true) // Disable Nagle's algorithm for precise segmentation
 
         s.connect(443, ip, () => {
@@ -132,7 +132,7 @@ export class SplitCastEngine {
           // Send each fragment as a separate TCP segment
           let fragmentIndex = 0
           const sendNext = (): void => {
-            if (done || fragmentIndex >= fragments.length) return  // bug 2: stop if done
+            if (done || fragmentIndex >= fragments.length) return // bug 2: stop if done
 
             const fragment = fragments[fragmentIndex++]
             s.write(fragment, () => {
@@ -184,10 +184,13 @@ export class SplitCastEngine {
 
     // Supported versions extension (TLS 1.3 = 0x0304)
     const versionsExt = Buffer.from([
-      0x00, 0x2b, // extension type: supported_versions
-      0x00, 0x03, // extension length
-      0x02,       // supported versions length
-      0x03, 0x04  // TLS 1.3
+      0x00,
+      0x2b, // extension type: supported_versions
+      0x00,
+      0x03, // extension length
+      0x02, // supported versions length
+      0x03,
+      0x04 // TLS 1.3
     ])
 
     // Combine extensions
@@ -202,23 +205,32 @@ export class SplitCastEngine {
     let offset = 0
 
     // Protocol version (TLS 1.2 for compatibility)
-    body.writeUInt16BE(0x0303, offset); offset += 2
+    body.writeUInt16BE(0x0303, offset)
+    offset += 2
     // Random
-    random.copy(body, offset); offset += 32
+    random.copy(body, offset)
+    offset += 32
     // Session ID length
-    body.writeUInt8(32, offset); offset += 1
+    body.writeUInt8(32, offset)
+    offset += 1
     // Session ID
-    sessionId.copy(body, offset); offset += 32
+    sessionId.copy(body, offset)
+    offset += 32
     // Cipher suites length (2 bytes for 1 suite)
-    body.writeUInt16BE(2, offset); offset += 2
+    body.writeUInt16BE(2, offset)
+    offset += 2
     // TLS_AES_128_GCM_SHA256
-    body.writeUInt16BE(0x1301, offset); offset += 2
+    body.writeUInt16BE(0x1301, offset)
+    offset += 2
     // Compression methods length
-    body.writeUInt8(1, offset); offset += 1
+    body.writeUInt8(1, offset)
+    offset += 1
     // No compression
-    body.writeUInt8(0, offset); offset += 1
+    body.writeUInt8(0, offset)
+    offset += 1
     // Extensions length
-    body.writeUInt16BE(extensions.length, offset); offset += 2
+    body.writeUInt16BE(extensions.length, offset)
+    offset += 2
     // Extensions
     extensions.copy(body, offset)
 
@@ -238,5 +250,4 @@ export class SplitCastEngine {
 
     return record
   }
-
 }

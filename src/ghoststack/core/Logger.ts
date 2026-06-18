@@ -2,7 +2,7 @@
  * GhostStack Persistent Logger
  *
  * Writes structured logs to rotating files inside the Electron userData directory.
- *   %APPDATA%/flux-browser/logs/ghost-<date>.log
+ *   %APPDATA%/ghost-browser/logs/ghost-<date>.log
  *
  * Features:
  *   • Timestamped entries with log level
@@ -18,7 +18,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 // ── Configuration ──
-const MAX_LOG_FILES = 7          // Keep at most 7 days of logs
+const MAX_LOG_FILES = 7 // Keep at most 7 days of logs
 const LOG_DIR_NAME = 'logs'
 const LOG_PREFIX = 'ghost'
 
@@ -50,14 +50,14 @@ function timestamp(): string {
 
 function ensureLogDir(): string {
   if (logDir) return logDir
-  
+
   // Save to the local project folder in development
   if (app.isPackaged) {
     logDir = path.join(app.getPath('userData'), LOG_DIR_NAME)
   } else {
     logDir = path.join(process.cwd(), LOG_DIR_NAME)
   }
-  
+
   if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true })
   }
@@ -91,8 +91,9 @@ function getStream(): fs.WriteStream {
 
 function pruneOldLogs(dir: string): void {
   try {
-    const files = fs.readdirSync(dir)
-      .filter(f => f.startsWith(LOG_PREFIX) && f.endsWith('.log'))
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => f.startsWith(LOG_PREFIX) && f.endsWith('.log'))
       .sort()
 
     while (files.length > MAX_LOG_FILES) {
@@ -105,14 +106,16 @@ function pruneOldLogs(dir: string): void {
 }
 
 function formatArgs(args: any[]): string {
-  return args.map(a => {
-    if (typeof a === 'string') return a
-    try {
-      return JSON.stringify(a)
-    } catch {
-      return String(a)
-    }
-  }).join(' ')
+  return args
+    .map((a) => {
+      if (typeof a === 'string') return a
+      try {
+        return JSON.stringify(a)
+      } catch {
+        return String(a)
+      }
+    })
+    .join(' ')
 }
 
 function writeLine(level: string, args: any[]): void {

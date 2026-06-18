@@ -7,48 +7,124 @@
 import { BloomFilter } from './BloomFilter'
 import { URLStripper } from './URLStripper'
 
-
 export interface BlockingSettings {
-  ads: boolean; trackers: boolean; socialWidgets: boolean; cookieConsent: boolean
-  cryptoMiners: boolean; malware: boolean; analytics: boolean; stripTrackingParams: boolean
+  ads: boolean
+  trackers: boolean
+  socialWidgets: boolean
+  cookieConsent: boolean
+  cryptoMiners: boolean
+  malware: boolean
+  analytics: boolean
+  stripTrackingParams: boolean
 }
 
 export interface BlockingStats {
-  adsBlocked: number; trackersBlocked: number; bandwidthSavedBytes: number
+  adsBlocked: number
+  trackersBlocked: number
+  bandwidthSavedBytes: number
   trackingUrlsStripped: number
 }
 
 /** Built-in tracker domains */
 const TRACKER_DOMAINS = [
-  'google-analytics.com', 'doubleclick.net', 'facebook.net', 'connect.facebook.net', 'pixel.facebook.com',
-  'analytics.yahoo.com', 'scorecardresearch.com', 'quantserve.com', 'adservice.google.com',
-  'googlesyndication.com', 'googleadservices.com', 'amazon-adsystem.com', 'criteo.com', 'outbrain.com',
-  'taboola.com', 'moatads.com', 'adsafeprotected.com', 'bidswitch.net', 'casalemedia.com',
-  'demdex.net', 'exelator.com', 'eyeota.net', 'liadm.com', 'mathtag.com', 'mxptint.net',
-  'openx.net', 'pubmatic.com', 'rfihub.com', 'rlcdn.com', 'rubiconproject.com',
-  'serving-sys.com', 'sharethrough.com', 'simpli.fi', 'spotxchange.com', 'tapad.com',
-  'tremorhub.com', 'turn.com', 'undertone.com', 'zedo.com', 'hotjar.com', 'mixpanel.com',
-  'segment.io', 'amplitude.com', 'fullstory.com', 'newrelic.com', 'sentry.io',
-  'cookiebot.com', 'onetrust.com', 'trustarc.com', 'consensu.org',
-  'coinhive.com', 'coin-hive.com', 'jsecoin.com', 'cryptoloot.pro', 'minero.cc',
-  'addthis.com', 'sharethis.com', 'sumo.com'
+  'google-analytics.com',
+  'doubleclick.net',
+  'facebook.net',
+  'connect.facebook.net',
+  'pixel.facebook.com',
+  'analytics.yahoo.com',
+  'scorecardresearch.com',
+  'quantserve.com',
+  'adservice.google.com',
+  'googlesyndication.com',
+  'googleadservices.com',
+  'amazon-adsystem.com',
+  'criteo.com',
+  'outbrain.com',
+  'taboola.com',
+  'moatads.com',
+  'adsafeprotected.com',
+  'bidswitch.net',
+  'casalemedia.com',
+  'demdex.net',
+  'exelator.com',
+  'eyeota.net',
+  'liadm.com',
+  'mathtag.com',
+  'mxptint.net',
+  'openx.net',
+  'pubmatic.com',
+  'rfihub.com',
+  'rlcdn.com',
+  'rubiconproject.com',
+  'serving-sys.com',
+  'sharethrough.com',
+  'simpli.fi',
+  'spotxchange.com',
+  'tapad.com',
+  'tremorhub.com',
+  'turn.com',
+  'undertone.com',
+  'zedo.com',
+  'hotjar.com',
+  'mixpanel.com',
+  'segment.io',
+  'amplitude.com',
+  'fullstory.com',
+  'newrelic.com',
+  'sentry.io',
+  'cookiebot.com',
+  'onetrust.com',
+  'trustarc.com',
+  'consensu.org',
+  'coinhive.com',
+  'coin-hive.com',
+  'jsecoin.com',
+  'cryptoloot.pro',
+  'minero.cc',
+  'addthis.com',
+  'sharethis.com',
+  'sumo.com'
 ]
 
-const SOCIAL_WIDGETS = ['platform.twitter.com', 'connect.facebook.net', 'platform.linkedin.com', 'apis.google.com/js/platform.js']
-const CRYPTO_MINERS = ['coinhive.com', 'coin-hive.com', 'jsecoin.com', 'cryptoloot.pro', 'minero.cc', 'webminepool.com']
+const SOCIAL_WIDGETS = [
+  'platform.twitter.com',
+  'connect.facebook.net',
+  'platform.linkedin.com',
+  'apis.google.com/js/platform.js'
+]
+const CRYPTO_MINERS = [
+  'coinhive.com',
+  'coin-hive.com',
+  'jsecoin.com',
+  'cryptoloot.pro',
+  'minero.cc',
+  'webminepool.com'
+]
 
 export class BlockingEngine {
   private bloomFilter: BloomFilter
 
   private settings: BlockingSettings
-  private stats: BlockingStats = { adsBlocked: 0, trackersBlocked: 0, bandwidthSavedBytes: 0, trackingUrlsStripped: 0 }
+  private stats: BlockingStats = {
+    adsBlocked: 0,
+    trackersBlocked: 0,
+    bandwidthSavedBytes: 0,
+    trackingUrlsStripped: 0
+  }
   private allowlist: Set<string> = new Set()
 
   constructor() {
     this.bloomFilter = new BloomFilter(100000, 7)
-    this.settings = { 
-      ads: true, trackers: true, socialWidgets: true, cookieConsent: true, 
-      cryptoMiners: true, malware: true, analytics: true, stripTrackingParams: true 
+    this.settings = {
+      ads: true,
+      trackers: true,
+      socialWidgets: true,
+      cookieConsent: true,
+      cryptoMiners: true,
+      malware: true,
+      analytics: true,
+      stripTrackingParams: true
     }
   }
 
@@ -60,7 +136,9 @@ export class BlockingEngine {
   }
 
   /** Handle Electron webRequest interceptor */
-  handleBeforeRequest(details: Electron.OnBeforeRequestListenerDetails): Electron.CallbackResponse | null {
+  handleBeforeRequest(
+    details: Electron.OnBeforeRequestListenerDetails
+  ): Electron.CallbackResponse | null {
     try {
       let urlStr = details.url
       // Unwrap GhostProtocol local relay URLs so we can block the actual domain
@@ -71,7 +149,7 @@ export class BlockingEngine {
           urlStr = innerUrl
         }
       }
-      
+
       const url = new URL(urlStr)
       const domain = url.hostname
 
@@ -91,12 +169,12 @@ export class BlockingEngine {
 
       // 3. Ad & Tracker Domain Block
       if (this.shouldBlock(domain)) {
-        console.log(`[BlockingEngine] Blocked domain: ${domain} (url: ${urlStr})`);
+        console.log(`[BlockingEngine] Blocked domain: ${domain} (url: ${urlStr})`)
         this.stats.adsBlocked++
         this.stats.bandwidthSavedBytes += 15000 // avg ad size estimate
         return { cancel: true }
       }
-    } catch { }
+    } catch {}
     return null
   }
 
@@ -113,11 +191,30 @@ export class BlockingEngine {
     return false
   }
 
-  getStats(): BlockingStats { return { ...this.stats } }
-  getSettings(): BlockingSettings { return { ...this.settings } }
-  updateSettings(s: Partial<BlockingSettings>): void { this.settings = { ...this.settings, ...s } }
-  addToAllowlist(d: string): void { this.allowlist.add(d) }
-  removeFromAllowlist(d: string): void { this.allowlist.delete(d) }
-  getAllowlist(): string[] { return Array.from(this.allowlist) }
-  destroy(): void { this.stats = { adsBlocked: 0, trackersBlocked: 0, bandwidthSavedBytes: 0, trackingUrlsStripped: 0 } }
+  getStats(): BlockingStats {
+    return { ...this.stats }
+  }
+  getSettings(): BlockingSettings {
+    return { ...this.settings }
+  }
+  updateSettings(s: Partial<BlockingSettings>): void {
+    this.settings = { ...this.settings, ...s }
+  }
+  addToAllowlist(d: string): void {
+    this.allowlist.add(d)
+  }
+  removeFromAllowlist(d: string): void {
+    this.allowlist.delete(d)
+  }
+  getAllowlist(): string[] {
+    return Array.from(this.allowlist)
+  }
+  destroy(): void {
+    this.stats = {
+      adsBlocked: 0,
+      trackersBlocked: 0,
+      bandwidthSavedBytes: 0,
+      trackingUrlsStripped: 0
+    }
+  }
 }

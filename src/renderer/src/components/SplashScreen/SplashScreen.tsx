@@ -7,7 +7,11 @@ export default function SplashScreen({ onFinished }: { onFinished: () => void })
     const t1 = setTimeout(() => setPhase('hold'), 500)
     const t2 = setTimeout(() => setPhase('out'), 2000)
     const t3 = setTimeout(onFinished, 2400)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+    }
   }, [onFinished])
 
   return (
@@ -15,36 +19,34 @@ export default function SplashScreen({ onFinished }: { onFinished: () => void })
       className={`fixed inset-0 z-[9999] flex items-center justify-center ${
         phase === 'out' ? 'animate-splash-out' : 'animate-splash-in'
       }`}
-      style={{ background: '#111113' }}
+      style={{ background: '#000000' }}
     >
       <div className="flex flex-col items-center gap-7">
-        {/* Logo */}
+        {/* Ghost Logo */}
         <div className="animate-logo-breathe">
           <div
             style={{
               width: 80,
               height: 80,
               borderRadius: 22,
-              background: 'linear-gradient(145deg, #222228 0%, #18181c 100%)',
-              border: '1px solid rgba(255,255,255,0.06)',
+              background: 'linear-gradient(145deg, #1a1a1e 0%, #0a0a0c 100%)',
+              border: '1px solid rgba(230,57,70,0.15)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)'
+              boxShadow:
+                '0 12px 40px rgba(0,0,0,0.4), 0 0 30px rgba(230,57,70,0.1), inset 0 1px 0 rgba(255,255,255,0.04)'
             }}
           >
-            <svg width="38" height="38" viewBox="0 0 36 36" fill="none">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
               <path
-                d="M8 8h6v20H8V8zm8 0h6l6 20h-6L16 8z"
-                fill="url(#splash-grad)"
-                fillRule="evenodd"
+                d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                stroke="#e63946"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
-              <defs>
-                <linearGradient id="splash-grad" x1="8" y1="8" x2="26" y2="28" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#d4d4d8" />
-                  <stop offset="1" stopColor="#71717a" />
-                </linearGradient>
-              </defs>
+              <circle cx="12" cy="12" r="3.2" fill="#e63946" />
             </svg>
           </div>
         </div>
@@ -54,12 +56,12 @@ export default function SplashScreen({ onFinished }: { onFinished: () => void })
           <h1
             style={{
               fontSize: 20,
-              fontWeight: 600,
-              color: '#e4e4e7',
-              letterSpacing: '0.1em'
+              fontWeight: 700,
+              color: '#e63946',
+              letterSpacing: '0.15em'
             }}
           >
-            FLUX
+            GHOST
           </h1>
           <span
             style={{
@@ -89,7 +91,7 @@ export default function SplashScreen({ onFinished }: { onFinished: () => void })
             style={{
               height: '100%',
               borderRadius: 1,
-              background: 'linear-gradient(90deg, var(--color-accent-muted), var(--color-accent))'
+              background: 'linear-gradient(90deg, rgba(230,57,70,0.3), #e63946)'
             }}
           />
         </div>

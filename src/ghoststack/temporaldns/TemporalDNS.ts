@@ -206,7 +206,7 @@ export class TemporalDNS {
           timings.push(Date.now() - start)
 
           // Wait the encoded delay
-          await new Promise(r => setTimeout(r, delay))
+          await new Promise((r) => setTimeout(r, delay))
         }
 
         // Decode the response timings
@@ -241,7 +241,9 @@ export class TemporalDNS {
 
         request.on('response', (response) => {
           let body = ''
-          response.on('data', (chunk) => { body += chunk.toString() })
+          response.on('data', (chunk) => {
+            body += chunk.toString()
+          })
           response.on('end', () => {
             clearTimeout(timer)
             try {
@@ -321,7 +323,7 @@ export class TemporalDNS {
   private isValidIP(ip: string): boolean {
     const parts = ip.split('.')
     if (parts.length !== 4) return false
-    return parts.every(p => {
+    return parts.every((p) => {
       const n = parseInt(p, 10)
       return !isNaN(n) && n >= 0 && n <= 255
     })

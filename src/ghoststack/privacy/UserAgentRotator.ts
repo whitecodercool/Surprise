@@ -25,7 +25,7 @@ const UA_STRINGS_WIN = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 OPR/114.0.0.0',
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Vivaldi/6.9',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Brave/1.72',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Brave/1.72'
 ]
 
 const UA_STRINGS_MAC = [
@@ -38,7 +38,7 @@ const UA_STRINGS_MAC = [
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 OPR/114.0.0.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Vivaldi/6.9',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Vivaldi/6.9'
 ]
 
 export class UserAgentRotator {
@@ -49,9 +49,13 @@ export class UserAgentRotator {
     this.sessionUA = pool[hash.readUInt8(0) % pool.length]
   }
   /** Get the UA string for this session */
-  getSessionUA(): string { return this.sessionUA }
+  getSessionUA(): string {
+    return this.sessionUA
+  }
   /** Force a specific UA (for testing) */
-  setUA(ua: string): void { this.sessionUA = ua }
+  setUA(ua: string): void {
+    this.sessionUA = ua
+  }
   /** Rotate to a new random UA */
   rotate(): void {
     const pool = process.platform === 'darwin' ? UA_STRINGS_MAC : UA_STRINGS_WIN

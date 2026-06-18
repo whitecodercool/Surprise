@@ -32,7 +32,9 @@ Storage.prototype.getItem = function(key) {
   async clearForDomain(domain: string): Promise<void> {
     try {
       await session.defaultSession.clearStorageData({ origin: `https://${domain}` })
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   /** Clear all storage */

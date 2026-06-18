@@ -170,7 +170,9 @@ export async function queryDoT(
       if (resolved) return
       resolved = true
       clearTimeout(timer)
-      try { socket.destroy() } catch {}
+      try {
+        socket.destroy()
+      } catch {}
       resolve(res)
     }
 
@@ -223,9 +225,7 @@ export async function consensusDoT(
 ): Promise<{ ip: string; provider: string } | null> {
   const providers: DoTProvider[] = ['cloudflare', 'google', 'quad9']
 
-  const results = await Promise.all(
-    providers.map((p) => queryDoT(domain, p, recordType, 5000))
-  )
+  const results = await Promise.all(providers.map((p) => queryDoT(domain, p, recordType, 5000)))
 
   const ipVotes: Map<string, string[]> = new Map()
   for (let i = 0; i < results.length; i++) {

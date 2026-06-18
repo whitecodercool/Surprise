@@ -9,20 +9,26 @@ export type TorStatus = 'stopped' | 'starting' | 'bootstrapping' | 'ready' | 'er
 class TorService {
   private proc: ChildProcess | null = null
   private _status: TorStatus = 'stopped'
-  private _socksPort = 19051  // separate from Tor Browser (9150) or system Tor (9050)
+  private _socksPort = 19051 // separate from Tor Browser (9150) or system Tor (9050)
   private listeners: Array<(s: TorStatus, pct?: number) => void> = []
   private uiWc: Electron.WebContents | null = null
   private startPromise: Promise<void> | null = null
 
-  setWebContents(wc: Electron.WebContents) { this.uiWc = wc }
-  getSocksPort()  { return this._socksPort }
-  getStatus()     { return this._status }
+  setWebContents(wc: Electron.WebContents) {
+    this.uiWc = wc
+  }
+  getSocksPort() {
+    return this._socksPort
+  }
+  getStatus() {
+    return this._status
+  }
 
   // ── Find bundled or system tor binary ─────────────────────────────────────
   findTorBinary(): string | null {
-    const isWin    = process.platform === 'win32'
-    const isMac    = process.platform === 'darwin'
-    const binName  = isWin ? 'tor.exe' : 'tor'
+    const isWin = process.platform === 'win32'
+    const isMac = process.platform === 'darwin'
+    const binName = isWin ? 'tor.exe' : 'tor'
     const candidates: string[] = []
 
     if (!is.dev) {
@@ -33,31 +39,27 @@ class TorService {
     // Dev / fallback paths per platform
     if (isWin) {
       const localAppData = process.env.LOCALAPPDATA || ''
-      const appData      = process.env.APPDATA || ''
+      const appData = process.env.APPDATA || ''
       candidates.push(
         path.join(localAppData, 'Tor Browser', 'Browser', 'TorBrowser', 'Tor', 'tor.exe'),
-        path.join(appData,      'Tor Browser', 'Browser', 'TorBrowser', 'Tor', 'tor.exe'),
-        'C:\\Program Files\\Tor Browser\\Browser\\TorBrowser\\Tor\\tor.exe',
+        path.join(appData, 'Tor Browser', 'Browser', 'TorBrowser', 'Tor', 'tor.exe'),
+        'C:\\Program Files\\Tor Browser\\Browser\\TorBrowser\\Tor\\tor.exe'
       )
     } else if (isMac) {
       candidates.push(
         '/Applications/Tor Browser.app/Contents/MacOS/Tor/tor',
         '/usr/local/bin/tor',
-        '/opt/homebrew/bin/tor',
+        '/opt/homebrew/bin/tor'
       )
     } else {
       // Linux
-      candidates.push(
-        '/usr/bin/tor',
-        '/usr/local/bin/tor',
-        '/snap/bin/tor',
-      )
+      candidates.push('/usr/bin/tor', '/usr/local/bin/tor', '/snap/bin/tor')
     }
 
     // Dev fallback: binary placed next to app source
     candidates.push(
       path.join(app.getAppPath(), '..', 'resources', 'tor', binName),
-      path.join(process.cwd(), 'resources', 'tor', binName),
+      path.join(process.cwd(), 'resources', 'tor', binName)
     )
 
     for (const c of candidates) {
@@ -84,7 +86,7 @@ class TorService {
       return Promise.reject(new Error('TOR_NOT_FOUND'))
     }
 
-    const dataDir  = path.join(app.getPath('userData'), 'tor-data')
+    const dataDir = path.join(app.getPath('userData'), 'tor-data')
     fs.mkdirSync(dataDir, { recursive: true })
 
     const torrc = [
@@ -93,7 +95,7 @@ class TorService {
       'Log notice stdout',
       'ExitPolicy reject *:*',
       'ExitRelay 0',
-      'DisableDebuggerAttachment 0',
+      'DisableDebuggerAttachment 0'
     ].join('\n')
 
     const torrcPath = path.join(dataDir, 'torrc')
@@ -102,7 +104,7 @@ class TorService {
     this._setStatus('starting')
 
     this.proc = spawn(torBin, ['-f', torrcPath], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe']
     })
 
     return new Promise<void>((resolve, reject) => {
@@ -152,13 +154,15 @@ class TorService {
 
   private _setStatus(s: TorStatus, pct?: number) {
     this._status = s
-    this.listeners.forEach(l => l(s, pct))
+    this.listeners.forEach((l) => l(s, pct))
     this.uiWc?.send('darkroom:tor-status', { status: s, progress: pct ?? null })
   }
 
   onStatus(cb: (s: TorStatus, pct?: number) => void): () => void {
     this.listeners.push(cb)
-    return () => { this.listeners = this.listeners.filter(l => l !== cb) }
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== cb)
+    }
   }
 }
 

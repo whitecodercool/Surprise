@@ -1,11 +1,9 @@
 import { BaseWindow } from 'electron'
 
 export class WindowManager {
-  private sidebarWidth = 240
+  private sidebarWidth = 0
 
-  constructor(
-    private window: BaseWindow
-  ) {}
+  constructor(private window: BaseWindow) {}
 
   getSidebarWidth(): number {
     return this.sidebarWidth
@@ -17,7 +15,7 @@ export class WindowManager {
 
   getContentBounds(): { x: number; y: number; width: number; height: number } {
     const bounds = this.window.getContentBounds()
-    const toolbarHeight = 52
+    const toolbarHeight = 88
 
     return {
       x: this.sidebarWidth,

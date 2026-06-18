@@ -32,11 +32,7 @@ export {
 } from './DoTClient'
 
 // DNS Resolver — Full multi-protocol resolution chain
-export {
-  DNSResolver,
-  type DNSSettings,
-  type DNSResolutionStats
-} from './DNSResolver'
+export { DNSResolver, type DNSSettings, type DNSResolutionStats } from './DNSResolver'
 
 // DNS Leak Test — Comprehensive privacy audit
 export {

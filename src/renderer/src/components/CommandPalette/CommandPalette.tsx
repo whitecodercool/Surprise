@@ -3,7 +3,19 @@ import { useBrowser } from '../../context/BrowserContext'
 import type { CommandAction } from '../../types'
 
 export default function CommandPalette() {
-  const { state, dispatch, createNewTab, closeTab, switchTab, navigateTo, pinTab, unpinTab, muteTab, unmuteTab, restoreClosedTab } = useBrowser()
+  const {
+    state,
+    dispatch,
+    createNewTab,
+    closeTab,
+    switchTab,
+    navigateTo,
+    pinTab,
+    unpinTab,
+    muteTab,
+    unmuteTab,
+    restoreClosedTab
+  } = useBrowser()
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -33,7 +45,9 @@ export default function CommandPalette() {
         shortcut: 'Ctrl+W',
         category: 'Actions',
         icon: '✕',
-        action: () => { if (state.activeTabId) closeTab(state.activeTabId) }
+        action: () => {
+          if (state.activeTabId) closeTab(state.activeTabId)
+        }
       },
       {
         id: 'reopen-tab',
@@ -41,7 +55,9 @@ export default function CommandPalette() {
         shortcut: 'Ctrl+⇧+T',
         category: 'Actions',
         icon: '↩',
-        action: () => { if (state.recentlyClosed.length > 0) restoreClosedTab(state.recentlyClosed[0]) }
+        action: () => {
+          if (state.recentlyClosed.length > 0) restoreClosedTab(state.recentlyClosed[0])
+        }
       },
       {
         id: 'toggle-sidebar',
@@ -72,22 +88,40 @@ export default function CommandPalette() {
         label: activeTab.isPinned ? 'Unpin Current Tab' : 'Pin Current Tab',
         category: 'Tab',
         icon: '📌',
-        action: () => activeTab.isPinned ? unpinTab(activeTab.id) : pinTab(activeTab.id)
+        action: () => (activeTab.isPinned ? unpinTab(activeTab.id) : pinTab(activeTab.id))
       })
       base.push({
         id: 'mute-tab',
         label: activeTab.isMuted ? 'Unmute Current Tab' : 'Mute Current Tab',
         category: 'Tab',
         icon: activeTab.isMuted ? '🔇' : '🔊',
-        action: () => activeTab.isMuted ? unmuteTab(activeTab.id) : muteTab(activeTab.id)
+        action: () => (activeTab.isMuted ? unmuteTab(activeTab.id) : muteTab(activeTab.id))
       })
     }
 
     // Navigate
     base.push(
-      { id: 'nav-google', label: 'Google', category: 'Navigate', icon: '🔍', action: () => navigateTo('https://www.google.com') },
-      { id: 'nav-github', label: 'GitHub', category: 'Navigate', icon: '🐙', action: () => navigateTo('https://github.com') },
-      { id: 'nav-youtube', label: 'YouTube', category: 'Navigate', icon: '▶️', action: () => navigateTo('https://www.youtube.com') }
+      {
+        id: 'nav-google',
+        label: 'Google',
+        category: 'Navigate',
+        icon: '🔍',
+        action: () => navigateTo('https://www.google.com')
+      },
+      {
+        id: 'nav-github',
+        label: 'GitHub',
+        category: 'Navigate',
+        icon: '🐙',
+        action: () => navigateTo('https://github.com')
+      },
+      {
+        id: 'nav-youtube',
+        label: 'YouTube',
+        category: 'Navigate',
+        icon: '▶️',
+        action: () => navigateTo('https://www.youtube.com')
+      }
     )
 
     // Open tabs
@@ -113,7 +147,23 @@ export default function CommandPalette() {
     })
 
     return base
-  }, [state.tabs, state.activeTabId, state.splitViewMode, state.recentlyClosed, activeTab, createNewTab, closeTab, switchTab, navigateTo, dispatch, pinTab, unpinTab, muteTab, unmuteTab, restoreClosedTab])
+  }, [
+    state.tabs,
+    state.activeTabId,
+    state.splitViewMode,
+    state.recentlyClosed,
+    activeTab,
+    createNewTab,
+    closeTab,
+    switchTab,
+    navigateTo,
+    dispatch,
+    pinTab,
+    unpinTab,
+    muteTab,
+    unmuteTab,
+    restoreClosedTab
+  ])
 
   const filteredActions = useMemo(() => {
     if (!query.trim()) return actions
@@ -123,7 +173,9 @@ export default function CommandPalette() {
     )
   }, [actions, query])
 
-  useEffect(() => { setSelectedIndex(0) }, [query])
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [query])
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'ArrowDown') {
@@ -180,9 +232,20 @@ export default function CommandPalette() {
           className="flex items-center gap-3 px-4"
           style={{ height: 54, borderBottom: '1px solid var(--color-border-subtle)' }}
         >
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" style={{ flexShrink: 0, color: 'var(--color-text-muted)' }}>
-            <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" strokeWidth="1.3"/>
-            <path d="M10 10l3.5 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 15 15"
+            fill="none"
+            style={{ flexShrink: 0, color: 'var(--color-text-muted)' }}
+          >
+            <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" strokeWidth="1.3" />
+            <path
+              d="M10 10l3.5 3.5"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
           </svg>
           <input
             ref={inputRef}
@@ -217,7 +280,10 @@ export default function CommandPalette() {
                     key={action.id}
                     data-index={idx}
                     className={`cmd-item ${isSel ? 'selected' : ''}`}
-                    onClick={() => { action.action(); dispatch({ type: 'TOGGLE_COMMAND_PALETTE' }) }}
+                    onClick={() => {
+                      action.action()
+                      dispatch({ type: 'TOGGLE_COMMAND_PALETTE' })
+                    }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
                     <span
@@ -257,8 +323,13 @@ export default function CommandPalette() {
           {filteredActions.length === 0 && (
             <div className="flex flex-col items-center gap-2 py-10">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.15 }}>
-                <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M15.5 15.5L21 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+                <path
+                  d="M15.5 15.5L21 21"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
               </svg>
               <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                 No results — press Enter to search &ldquo;{query}&rdquo;

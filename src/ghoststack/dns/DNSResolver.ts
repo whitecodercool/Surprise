@@ -174,7 +174,14 @@ export class DNSResolver {
     }
 
     // 4. Fallback DoH providers
-    const fallbacks: DoHProvider[] = ['cloudflare', 'google', 'nextdns', 'quad9', 'adguard', 'mullvad']
+    const fallbacks: DoHProvider[] = [
+      'cloudflare',
+      'google',
+      'nextdns',
+      'quad9',
+      'adguard',
+      'mullvad'
+    ]
     for (const provider of fallbacks) {
       if (provider === this.settings.primaryProvider) continue
       const result = await this.resolveViaDoH(domain, provider)
@@ -234,12 +241,14 @@ export class DNSResolver {
 
         // Also resolve AAAA if enabled
         if (this.settings.enableIPv6) {
-          queryDoH(domain, provider, 3000, 'AAAA').then((v6results) => {
-            if (v6results.length > 0) {
-              const cached = this.dnsCache.get(domain)
-              if (cached) cached.ipv6 = v6results[0].ip
-            }
-          }).catch(() => {})
+          queryDoH(domain, provider, 3000, 'AAAA')
+            .then((v6results) => {
+              if (v6results.length > 0) {
+                const cached = this.dnsCache.get(domain)
+                if (cached) cached.ipv6 = v6results[0].ip
+              }
+            })
+            .catch(() => {})
         }
 
         return results[0].ip
@@ -259,12 +268,14 @@ export class DNSResolver {
 
         // Also resolve AAAA via DoT if enabled
         if (this.settings.enableIPv6) {
-          queryDoT(domain, provider, 28, 5000).then((v6results) => {
-            if (v6results.length > 0) {
-              const cached = this.dnsCache.get(domain)
-              if (cached) cached.ipv6 = v6results[0].ip
-            }
-          }).catch(() => {})
+          queryDoT(domain, provider, 28, 5000)
+            .then((v6results) => {
+              if (v6results.length > 0) {
+                const cached = this.dnsCache.get(domain)
+                if (cached) cached.ipv6 = v6results[0].ip
+              }
+            })
+            .catch(() => {})
         }
 
         return results[0].ip
@@ -300,7 +311,13 @@ export class DNSResolver {
   }
 
   /** Cache a positive DNS result with its TTL */
-  private cacheResult(domain: string, ip: string, ipv6: string | null, provider: string, ttl: number): void {
+  private cacheResult(
+    domain: string,
+    ip: string,
+    ipv6: string | null,
+    provider: string,
+    ttl: number
+  ): void {
     // Enforce max cache size with LRU-style eviction
     if (this.dnsCache.size >= this.MAX_CACHE_SIZE) {
       this.evictOldest(this.dnsCache)
@@ -394,7 +411,9 @@ export class DNSResolver {
     this.negativeCache.clear()
   }
 
-  getSettings(): DNSSettings { return { ...this.settings } }
+  getSettings(): DNSSettings {
+    return { ...this.settings }
+  }
 
   updateSettings(s: Partial<DNSSettings>): void {
     this.settings = { ...this.settings, ...s }

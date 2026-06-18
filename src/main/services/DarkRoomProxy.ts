@@ -18,7 +18,7 @@ import fs from 'fs'
 // The .onion address is never bundled in the app — fetched at runtime and cached locally.
 const DARKROOM_CONFIG_URL = 'https://darkroom.ghostbrowser.workers.dev/config'
 
-const CONFIG_PATH  = () => path.join(app.getPath('userData'), 'darkroom_config.json')
+const CONFIG_PATH = () => path.join(app.getPath('userData'), 'darkroom_config.json')
 const HMAC_KEY_PATH = () => path.join(app.getPath('userData'), 'darkroom_hmac.key')
 
 interface DarkRoomConfig {
@@ -55,7 +55,7 @@ function loadCachedOnionAddr(): string {
     if (!addr || !cfg.mac) return ''
     const key = getOrCreateHmacKey()
     const expected = Buffer.from(computeMac(addr, key), 'hex')
-    const actual   = Buffer.from(cfg.mac, 'hex')
+    const actual = Buffer.from(cfg.mac, 'hex')
     if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
       console.error('[DarkRoom] darkroom_config.json MAC mismatch — rejecting cached address')
       return ''
@@ -72,7 +72,7 @@ async function fetchOnionAddr(): Promise<string> {
   try {
     const res = await fetch(DARKROOM_CONFIG_URL, { signal: controller.signal })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json() as { onionAddr?: string }
+    const data = (await res.json()) as { onionAddr?: string }
     const addr = data.onionAddr?.trim()
     if (!addr?.endsWith('.onion')) throw new Error('Invalid response from config endpoint')
     return addr
@@ -108,8 +108,12 @@ class DarkRoomProxy {
     saveCachedOnionAddr(addr)
   }
 
-  getOnionAddr() { return this.onionAddr }
-  getLocalPort() { return this.localPort }
+  getOnionAddr() {
+    return this.onionAddr
+  }
+  getLocalPort() {
+    return this.localPort
+  }
 
   start(): Promise<number> {
     if (this.server) return Promise.resolve(this.localPort)
@@ -179,11 +183,11 @@ class DarkRoomProxy {
 
           // SOCKS5 CONNECT for .onion domain
           const host = Buffer.from(onionAddr, 'ascii')
-          const req  = Buffer.allocUnsafe(5 + host.length + 2)
-          req[0] = 0x05  // VER
-          req[1] = 0x01  // CMD = CONNECT
-          req[2] = 0x00  // RSV
-          req[3] = 0x03  // ATYP = domain
+          const req = Buffer.allocUnsafe(5 + host.length + 2)
+          req[0] = 0x05 // VER
+          req[1] = 0x01 // CMD = CONNECT
+          req[2] = 0x00 // RSV
+          req[3] = 0x03 // ATYP = domain
           req[4] = host.length
           host.copy(req, 5)
           req.writeUInt16BE(80, 5 + host.length)

@@ -110,7 +110,10 @@ export default function SidebarTab({
       className={classes}
     >
       {/* Favicon / Loading */}
-      <div className="flex-shrink-0 flex items-center justify-center" style={{ width: 16, height: 16 }}>
+      <div
+        className="flex-shrink-0 flex items-center justify-center"
+        style={{ width: 16, height: 16 }}
+      >
         {tab.isLoading ? (
           <div
             className="animate-spin"
@@ -133,7 +136,15 @@ export default function SidebarTab({
           />
         ) : (
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-            <rect x="1.5" y="1.5" width="12" height="12" rx="3" stroke="var(--color-text-faint)" strokeWidth="1" />
+            <rect
+              x="1.5"
+              y="1.5"
+              width="12"
+              height="12"
+              rx="3"
+              stroke="var(--color-text-faint)"
+              strokeWidth="1"
+            />
             <circle cx="7.5" cy="7.5" r="2" fill="var(--color-text-faint)" />
           </svg>
         )}
@@ -154,7 +165,15 @@ export default function SidebarTab({
 
       {/* Suspended indicator */}
       {(tab as any).isSuspended && !tab.isMuted && (
-        <svg className="ml-1 text-[var(--color-text-faint)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          className="ml-1 text-[var(--color-text-faint)]"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M2 4v16M22 4v16M12 4v16M6 4l6 16M18 4l-6 16"></path>
         </svg>
       )}
@@ -162,8 +181,16 @@ export default function SidebarTab({
       {/* Muted indicator (always visible when muted) */}
       {tab.isMuted && (
         <svg className="mute-indicator" width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M2 4.5h1.5L6 2.5v7l-2.5-2H2a.5.5 0 01-.5-.5V5a.5.5 0 01.5-.5z" fill="currentColor" />
-          <path d="M8 4.5l3 3M11 4.5l-3 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          <path
+            d="M2 4.5h1.5L6 2.5v7l-2.5-2H2a.5.5 0 01-.5-.5V5a.5.5 0 01.5-.5z"
+            fill="currentColor"
+          />
+          <path
+            d="M8 4.5l3 3M11 4.5l-3 3"
+            stroke="currentColor"
+            strokeWidth="1.1"
+            strokeLinecap="round"
+          />
         </svg>
       )}
 
@@ -180,13 +207,29 @@ export default function SidebarTab({
         >
           {tab.isMuted ? (
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-              <path d="M2 4.5h1.5L6 2.5v7l-2.5-2H2a.5.5 0 01-.5-.5V5a.5.5 0 01.5-.5z" fill="currentColor" />
-              <path d="M8 4.5l3 3M11 4.5l-3 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+              <path
+                d="M2 4.5h1.5L6 2.5v7l-2.5-2H2a.5.5 0 01-.5-.5V5a.5.5 0 01.5-.5z"
+                fill="currentColor"
+              />
+              <path
+                d="M8 4.5l3 3M11 4.5l-3 3"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              />
             </svg>
           ) : (
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-              <path d="M2 4.5h1.5L6 2.5v7l-2.5-2H2a.5.5 0 01-.5-.5V5a.5.5 0 01.5-.5z" fill="currentColor" />
-              <path d="M8.5 4.5a2.5 2.5 0 010 3" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+              <path
+                d="M2 4.5h1.5L6 2.5v7l-2.5-2H2a.5.5 0 01-.5-.5V5a.5.5 0 01.5-.5z"
+                fill="currentColor"
+              />
+              <path
+                d="M8.5 4.5a2.5 2.5 0 010 3"
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeLinecap="round"
+              />
             </svg>
           )}
         </button>
@@ -208,18 +251,24 @@ export default function SidebarTab({
               strokeLinejoin="round"
               fill={tab.isPinned ? 'currentColor' : 'none'}
             />
-            <path d="M4.2 7.8L1.5 10.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            <path
+              d="M4.2 7.8L1.5 10.5"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
 
         {/* Close */}
-        <button
-          onClick={handleClose}
-          className="tab-action-btn close-btn"
-          title="Close tab"
-        >
+        <button onClick={handleClose} className="tab-action-btn close-btn" title="Close tab">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            <path
+              d="M2.5 2.5l5 5M7.5 2.5l-5 5"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
       </div>
@@ -238,7 +287,14 @@ export default function SidebarTab({
             maxWidth: 280
           }}
         >
-          <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: 2 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: 'var(--color-text-primary)',
+              marginBottom: 2
+            }}
+          >
             {displayTitle}
           </div>
           <div

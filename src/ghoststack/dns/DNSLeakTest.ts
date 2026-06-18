@@ -64,7 +64,13 @@ export async function runDNSLeakTest(): Promise<DNSLeakResult> {
         : 'No DNS leak detected — DNS queries are encrypted.'
     }
   } catch {
-    return { leakDetected: false, systemDNSIP: null, dohIP: null, testDomain, details: 'Test failed — could not reach DNS servers.' }
+    return {
+      leakDetected: false,
+      systemDNSIP: null,
+      dohIP: null,
+      testDomain,
+      details: 'Test failed — could not reach DNS servers.'
+    }
   }
 }
 
@@ -129,7 +135,12 @@ async function testDNSMismatch(): Promise<DNSLeakTestEntry> {
     const dohIP = dohResults.length > 0 ? dohResults[0].ip : null
 
     if (!systemIP && !dohIP) {
-      return { name: 'DNS Mismatch', passed: true, severity: 'info', details: 'Could not reach any DNS — network may be offline.' }
+      return {
+        name: 'DNS Mismatch',
+        passed: true,
+        severity: 'info',
+        details: 'Could not reach any DNS — network may be offline.'
+      }
     }
 
     if (systemIP && dohIP && systemIP !== dohIP) {
@@ -141,9 +152,19 @@ async function testDNSMismatch(): Promise<DNSLeakTestEntry> {
       }
     }
 
-    return { name: 'DNS Mismatch', passed: true, severity: 'info', details: 'System DNS and DoH return the same result.' }
+    return {
+      name: 'DNS Mismatch',
+      passed: true,
+      severity: 'info',
+      details: 'System DNS and DoH return the same result.'
+    }
   } catch {
-    return { name: 'DNS Mismatch', passed: false, severity: 'warning', details: 'Test failed — could not compare DNS sources.' }
+    return {
+      name: 'DNS Mismatch',
+      passed: false,
+      severity: 'warning',
+      details: 'Test failed — could not compare DNS sources.'
+    }
   }
 }
 
@@ -169,10 +190,16 @@ async function testRandomSubdomainLeak(): Promise<DNSLeakTestEntry> {
       name: 'Random Subdomain',
       passed: true,
       severity: 'info',
-      details: 'System DNS correctly returned NXDOMAIN for a random subdomain — no DNS interception detected.'
+      details:
+        'System DNS correctly returned NXDOMAIN for a random subdomain — no DNS interception detected.'
     }
   } catch {
-    return { name: 'Random Subdomain', passed: true, severity: 'info', details: 'Test completed — no anomalies.' }
+    return {
+      name: 'Random Subdomain',
+      passed: true,
+      severity: 'info',
+      details: 'Test completed — no anomalies.'
+    }
   }
 }
 
@@ -200,7 +227,8 @@ async function testDoHReachability(): Promise<DNSLeakTestEntry> {
       name: 'DoH Reachability',
       passed: false,
       severity: 'critical',
-      details: 'No DoH providers are reachable — encrypted DNS is completely blocked on this network.'
+      details:
+        'No DoH providers are reachable — encrypted DNS is completely blocked on this network.'
     }
   }
 
@@ -245,7 +273,8 @@ async function testDoTReachability(): Promise<DNSLeakTestEntry> {
       name: 'DoT Reachability',
       passed: false,
       severity: 'warning',
-      details: 'No DoT providers reachable (port 853 blocked). DoH will be used as the sole encrypted DNS method.'
+      details:
+        'No DoT providers reachable (port 853 blocked). DoH will be used as the sole encrypted DNS method.'
     }
   }
 
@@ -283,7 +312,12 @@ async function testIPv6Leak(): Promise<DNSLeakTestEntry> {
       })
     })
   } catch {
-    return { name: 'IPv6 DNS Leak', passed: true, severity: 'info', details: 'IPv6 test could not run — likely safe.' }
+    return {
+      name: 'IPv6 DNS Leak',
+      passed: true,
+      severity: 'info',
+      details: 'IPv6 test could not run — likely safe.'
+    }
   }
 }
 

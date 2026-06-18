@@ -44,11 +44,28 @@ export class GhostStackProxy {
 
   /** Cloudflare IPv4 ranges (first two octets) */
   private static readonly CF_RANGES = [
-    '104.16', '104.17', '104.18', '104.19', '104.20', '104.21', '104.22',
-    '104.23', '104.24', '104.25', '104.26', '104.27',
-    '172.64', '172.65', '172.66', '172.67',
-    '141.101', '162.158', '190.93', '188.114',
-    '197.234', '198.41'
+    '104.16',
+    '104.17',
+    '104.18',
+    '104.19',
+    '104.20',
+    '104.21',
+    '104.22',
+    '104.23',
+    '104.24',
+    '104.25',
+    '104.26',
+    '104.27',
+    '172.64',
+    '172.65',
+    '172.66',
+    '172.67',
+    '141.101',
+    '162.158',
+    '190.93',
+    '188.114',
+    '197.234',
+    '198.41'
   ]
 
   constructor(cache: SessionCache) {
@@ -131,9 +148,9 @@ export class GhostStackProxy {
 
     // Block all private / link-local ranges — browser pages must never reach these
     if (
-      domain.startsWith('192.168.')  ||
-      domain.startsWith('10.')       ||
-      domain.startsWith('169.254.')  ||
+      domain.startsWith('192.168.') ||
+      domain.startsWith('10.') ||
+      domain.startsWith('169.254.') ||
       /^172\.(1[6-9]|2\d|3[01])\./.test(domain) ||
       domain.endsWith('.local')
     ) {
@@ -158,9 +175,11 @@ export class GhostStackProxy {
       // Check if we have a port override (alternative port that bypasses the firewall)
       const overridePort = this.portOverrides.get(domain)
       const connectPort = overridePort || port
-      
+
       if (targetIP) {
-        console.log(`[GhostStack Proxy] ${domain} -> direct IP ${targetIP}:${connectPort}${overridePort ? ' (ALT PORT)' : ''}`)
+        console.log(
+          `[GhostStack Proxy] ${domain} -> direct IP ${targetIP}:${connectPort}${overridePort ? ' (ALT PORT)' : ''}`
+        )
       }
 
       // Check if we should use the Worker Tunnel bypass
@@ -170,7 +189,7 @@ export class GhostStackProxy {
       //   try {
       //     const WORKER_URL = 'https://lingering-butterfly-0459.goyalashish367.workers.dev'
       //     const workerStream = await WorkerTunnel.establishRawTunnel(domain, port, WORKER_URL)
-          
+
       //     clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
       //     this.activeTunnels++
       //     this.totalTunneled++
@@ -200,12 +219,11 @@ export class GhostStackProxy {
       //   }
       // }
 
-
       // Default logic: Open TCP connection to the real server
       const serverSocket = net.connect(connectPort, connectTo, () => {
         // CRITICAL: Disable Nagle's algorithm so each write() = separate TCP segment
         serverSocket.setNoDelay(true)
-        
+
         // Tell Chromium the tunnel is open
         clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
 
@@ -231,8 +249,8 @@ export class GhostStackProxy {
             if (!serverSocket.destroyed) serverSocket.write(chunk)
           }
         })
-        
-        serverSocket.pipe(clientSocket);
+
+        serverSocket.pipe(clientSocket)
 
         const cleanup = () => {
           this.activeTunnels = Math.max(0, this.activeTunnels - 1)
@@ -319,7 +337,7 @@ export class GhostStackProxy {
     if (!ip) return null
 
     // Only try alternative ports for Cloudflare IPs
-    const isCloudflare = GhostStackProxy.CF_RANGES.some(range => ip!.startsWith(range))
+    const isCloudflare = GhostStackProxy.CF_RANGES.some((range) => ip!.startsWith(range))
     if (!isCloudflare) {
       console.log(`[GhostStack Proxy] ${domain} (${ip}) is not Cloudflare, skipping alt ports`)
       return null
@@ -354,34 +372,48 @@ export class GhostStackProxy {
     return new Promise((resolve) => {
       const timer = setTimeout(() => resolve(false), 4000)
       try {
-        const socket = tls.connect({
-          host: ip,
-          port,
-          servername: domain,
-          rejectUnauthorized: false,
-          timeout: 4000,
-          ALPNProtocols: ['h2', 'http/1.1']
-        }, () => {
-          clearTimeout(timer)
-          // Check if the certificate is from the real server (not MITM)
-          const cert = socket.getPeerCertificate()
-          const issuer = cert?.issuer?.O || ''
-          const isMITM = issuer.toLowerCase().includes('sophos') ||
-                         issuer.toLowerCase().includes('fortinet') ||
-                         issuer.toLowerCase().includes('zscaler') ||
-                         issuer.toLowerCase().includes('bluecoat') ||
-                         issuer.toLowerCase().includes('barracuda')
-          socket.destroy()
-          if (isMITM) {
-            console.log(`[GhostStack Proxy] Port ${port}: MITM detected (${issuer})`)
-            resolve(false)
-          } else {
-            resolve(true)
+        const socket = tls.connect(
+          {
+            host: ip,
+            port,
+            servername: domain,
+            rejectUnauthorized: false,
+            timeout: 4000,
+            ALPNProtocols: ['h2', 'http/1.1']
+          },
+          () => {
+            clearTimeout(timer)
+            // Check if the certificate is from the real server (not MITM)
+            const cert = socket.getPeerCertificate()
+            const issuer = cert?.issuer?.O || ''
+            const isMITM =
+              issuer.toLowerCase().includes('sophos') ||
+              issuer.toLowerCase().includes('fortinet') ||
+              issuer.toLowerCase().includes('zscaler') ||
+              issuer.toLowerCase().includes('bluecoat') ||
+              issuer.toLowerCase().includes('barracuda')
+            socket.destroy()
+            if (isMITM) {
+              console.log(`[GhostStack Proxy] Port ${port}: MITM detected (${issuer})`)
+              resolve(false)
+            } else {
+              resolve(true)
+            }
           }
+        )
+        socket.on('error', () => {
+          clearTimeout(timer)
+          resolve(false)
         })
-        socket.on('error', () => { clearTimeout(timer); resolve(false) })
-        socket.on('timeout', () => { clearTimeout(timer); socket.destroy(); resolve(false) })
-      } catch { clearTimeout(timer); resolve(false) }
+        socket.on('timeout', () => {
+          clearTimeout(timer)
+          socket.destroy()
+          resolve(false)
+        })
+      } catch {
+        clearTimeout(timer)
+        resolve(false)
+      }
     })
   }
 

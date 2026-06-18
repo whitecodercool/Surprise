@@ -12,9 +12,44 @@ import type { SessionCache, CachedIPEntry } from './SessionCache'
 /** CDN IP ranges for range scanning */
 const CDN_RANGES: Record<string, string[]> = {
   google: ['142.250.0.', '142.251.', '172.217.', '216.58.', '172.253.'],
-  cloudflare: ['104.16.', '104.17.', '104.18.', '104.19.', '104.20.', '104.21.', '104.22.', '104.23.', '104.24.', '104.25.', '172.64.', '172.65.', '172.66.', '172.67.'],
-  fastly: ['151.101.0.', '151.101.1.', '151.101.64.', '151.101.65.', '151.101.128.', '151.101.129.', '151.101.192.', '151.101.193.'],
-  akamai: ['23.32.', '23.33.', '23.34.', '23.35.', '23.36.', '23.37.', '23.38.', '23.39.', '23.40.', '23.41.'],
+  cloudflare: [
+    '104.16.',
+    '104.17.',
+    '104.18.',
+    '104.19.',
+    '104.20.',
+    '104.21.',
+    '104.22.',
+    '104.23.',
+    '104.24.',
+    '104.25.',
+    '172.64.',
+    '172.65.',
+    '172.66.',
+    '172.67.'
+  ],
+  fastly: [
+    '151.101.0.',
+    '151.101.1.',
+    '151.101.64.',
+    '151.101.65.',
+    '151.101.128.',
+    '151.101.129.',
+    '151.101.192.',
+    '151.101.193.'
+  ],
+  akamai: [
+    '23.32.',
+    '23.33.',
+    '23.34.',
+    '23.35.',
+    '23.36.',
+    '23.37.',
+    '23.38.',
+    '23.39.',
+    '23.40.',
+    '23.41.'
+  ],
   amazon: ['13.224.', '13.225.', '13.226.', '13.227.', '13.249.', '13.250.']
 }
 
@@ -104,9 +139,7 @@ async function method1_DoHConsensus(
  * @param domain - Domain to resolve
  * @returns IP and CDN if found
  */
-async function method2_CDNRangeScan(
-  domain: string
-): Promise<{ ip: string; cdn: string } | null> {
+async function method2_CDNRangeScan(domain: string): Promise<{ ip: string; cdn: string } | null> {
   // First, try to get an IP from any single DoH provider to identify CDN
   const providers: DoHProvider[] = ['cloudflare', 'google', 'nextdns', 'quad9']
   let referenceIP: string | null = null

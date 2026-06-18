@@ -20,6 +20,13 @@ export interface ClosedTab {
   closedAt: number
 }
 
+export interface Shortcut {
+  name: string
+  url: string
+  icon: string
+  color: string
+}
+
 export interface SidebarSection {
   id: string
   title: string
@@ -120,9 +127,11 @@ export interface BrowserState {
   ghoststackStatus: GhostStackStatus | null
   uiSettings: UISettings
   performanceMetrics: PerformanceMetrics
+  shortcuts: Shortcut[]
 }
 
 export type BrowserAction =
+  | { type: 'SET_TABS'; payload: { tabs: Tab[]; activeTabId: string | null } }
   | { type: 'ADD_TAB'; payload: Tab }
   | { type: 'CLOSE_TAB'; payload: string }
   | { type: 'SWITCH_TAB'; payload: string }
@@ -148,9 +157,13 @@ export type BrowserAction =
   | { type: 'SET_GHOSTSTACK_STATUS'; payload: GhostStackStatus }
   | { type: 'SET_UI_SETTINGS'; payload: Partial<UISettings> }
   | { type: 'SET_PERFORMANCE_METRICS'; payload: Partial<PerformanceMetrics> }
+  | { type: 'ADD_SHORTCUT'; payload: Shortcut }
+  | { type: 'REMOVE_SHORTCUT'; payload: string }
+  | { type: 'SET_SHORTCUTS'; payload: Shortcut[] }
 
-export interface FluxAPI {
+export interface GhostAPI {
   createTab: (url: string) => Promise<string>
+  getTabs: () => Promise<{ tabs: Tab[]; activeTabId: string | null }>
   closeTab: (id: string) => void
   switchTab: (id: string) => void
   navigateTo: (id: string, url: string) => void
@@ -178,7 +191,9 @@ export interface FluxAPI {
   ghoststackGetNetworkEnv: () => Promise<NetworkEnvironment>
   onGhoststackStatusChanged: (callback: (status: GhostStackStatus) => void) => void
   onGhoststackLogEntry: (callback: (log: any) => void) => void
-  onGhoststackToast: (callback: (data: { domain: string; engine: string; message: string }) => void) => void
+  onGhoststackToast: (
+    callback: (data: { domain: string; engine: string; message: string }) => void
+  ) => void
   ghoststackGetPrivacySettings: () => Promise<any>
   ghoststackUpdatePrivacySettings: (settings: any) => void
   ghoststackSetPrivacyLevel: (level: string) => void
@@ -200,4 +215,7 @@ export interface FluxAPI {
   darkroomStart: () => Promise<{ ok: boolean; port?: number; error?: string }>
   darkroomStop: () => Promise<boolean>
   onDarkroomTorStatus: (cb: (data: { status: string; progress: number | null }) => void) => void
+  showKebabMenu: (currentTheme: string) => void
+  onMenuAction: (callback: (action: string) => void) => void
+  onThemeChange: (callback: (theme: 'light' | 'dark' | 'system') => void) => void
 }

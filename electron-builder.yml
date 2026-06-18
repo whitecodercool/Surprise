@@ -1,5 +1,5 @@
 appId: com.electron.app
-productName: flux-browser
+productName: ghost-browser
 directories:
   buildResources: build
 files:
@@ -20,7 +20,7 @@ extraResources:
       - '**/*'
 
 win:
-  executableName: flux-browser
+  executableName: ghost-browser
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

@@ -28,7 +28,7 @@ export function DiagnosticsModal({ log, onClose }: DiagnosticsModalProps) {
           animate={{ y: 0, opacity: 1, scale: 1 }}
           exit={{ y: 20, opacity: 0, scale: 0.95 }}
           className="w-full max-w-2xl bg-[#111118] border border-[#333] rounded-xl shadow-2xl overflow-hidden flex flex-col"
-          onClick={e => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-[#222] bg-[#0a0a0f]">
@@ -54,7 +54,7 @@ export function DiagnosticsModal({ log, onClose }: DiagnosticsModalProps) {
               { id: 'curl', label: 'cURL', icon: 'terminal' },
               { id: 'tls', label: 'TLS State', icon: 'lock' },
               { id: 'payload', label: 'Payload', icon: 'data_object' }
-            ].map(tab => (
+            ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
@@ -74,15 +74,51 @@ export function DiagnosticsModal({ log, onClose }: DiagnosticsModalProps) {
           <div className="p-6 overflow-y-auto max-h-[60vh] text-sm text-gray-300">
             {activeTab === 'timeline' && (
               <div className="space-y-4">
-                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Connection Sequence</h3>
+                <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
+                  Connection Sequence
+                </h3>
                 <div className="relative pl-6 space-y-6">
                   {/* Vertical line */}
                   <div className="absolute left-2.5 top-2 bottom-2 w-px bg-[#333]"></div>
 
-                  <TimelineStep name="DNS Resolution" ms={env.timeline.dnsMs} status={env.timeline.failedAtStep === 'DNS' ? 'failed' : 'success'} />
-                  <TimelineStep name="TCP Handshake" ms={env.timeline.tcpMs} status={env.timeline.failedAtStep === 'TCP' ? 'failed' : env.timeline.failedAtStep === 'DNS' ? 'pending' : 'success'} />
-                  <TimelineStep name="TLS Handshake" ms={env.timeline.tlsMs} status={env.timeline.failedAtStep === 'TLS' ? 'failed' : ['DNS', 'TCP'].includes(env.timeline.failedAtStep) ? 'pending' : 'success'} />
-                  <TimelineStep name="HTTP Request" ms={env.timeline.httpMs} status={env.timeline.failedAtStep === 'HTTP' ? 'failed' : ['DNS', 'TCP', 'TLS'].includes(env.timeline.failedAtStep) ? 'pending' : 'success'} />
+                  <TimelineStep
+                    name="DNS Resolution"
+                    ms={env.timeline.dnsMs}
+                    status={env.timeline.failedAtStep === 'DNS' ? 'failed' : 'success'}
+                  />
+                  <TimelineStep
+                    name="TCP Handshake"
+                    ms={env.timeline.tcpMs}
+                    status={
+                      env.timeline.failedAtStep === 'TCP'
+                        ? 'failed'
+                        : env.timeline.failedAtStep === 'DNS'
+                          ? 'pending'
+                          : 'success'
+                    }
+                  />
+                  <TimelineStep
+                    name="TLS Handshake"
+                    ms={env.timeline.tlsMs}
+                    status={
+                      env.timeline.failedAtStep === 'TLS'
+                        ? 'failed'
+                        : ['DNS', 'TCP'].includes(env.timeline.failedAtStep)
+                          ? 'pending'
+                          : 'success'
+                    }
+                  />
+                  <TimelineStep
+                    name="HTTP Request"
+                    ms={env.timeline.httpMs}
+                    status={
+                      env.timeline.failedAtStep === 'HTTP'
+                        ? 'failed'
+                        : ['DNS', 'TCP', 'TLS'].includes(env.timeline.failedAtStep)
+                          ? 'pending'
+                          : 'success'
+                    }
+                  />
                 </div>
               </div>
             )}
@@ -90,8 +126,10 @@ export function DiagnosticsModal({ log, onClose }: DiagnosticsModalProps) {
             {activeTab === 'curl' && (
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Reproduction Command</h3>
-                  <button 
+                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                    Reproduction Command
+                  </h3>
+                  <button
                     onClick={() => navigator.clipboard.writeText(env.reproductionCurl)}
                     className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
                   >
@@ -107,13 +145,17 @@ export function DiagnosticsModal({ log, onClose }: DiagnosticsModalProps) {
             {activeTab === 'tls' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">JA3 Fingerprint</h3>
+                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
+                    JA3 Fingerprint
+                  </h3>
                   <div className="bg-[#0a0a0f] border border-[#222] rounded-lg p-3 font-mono text-xs break-all text-purple-400">
                     {env.tlsState.ja3Fingerprint || 'N/A'}
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Cipher Suite</h3>
+                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
+                    Cipher Suite
+                  </h3>
                   <div className="bg-[#0a0a0f] border border-[#222] rounded-lg p-3 font-mono text-xs text-green-400">
                     {env.tlsState.cipherSuiteUsed || 'N/A'}
                   </div>
@@ -134,12 +176,16 @@ export function DiagnosticsModal({ log, onClose }: DiagnosticsModalProps) {
             {activeTab === 'payload' && (
               <div className="space-y-4">
                 <div className="bg-[#1a1a24] border border-[#333] rounded-lg p-4">
-                  <div className="text-xs text-red-400 font-semibold mb-1">Error Type: {env.errorType}</div>
+                  <div className="text-xs text-red-400 font-semibold mb-1">
+                    Error Type: {env.errorType}
+                  </div>
                   <div className="text-sm">{env.errorMessage}</div>
                 </div>
-                
+
                 <div>
-                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Response Dump</h3>
+                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
+                    Response Dump
+                  </h3>
                   <div className="bg-[#0a0a0f] border border-[#222] rounded-lg p-4 font-mono text-xs overflow-x-auto whitespace-pre-wrap text-orange-300">
                     {env.responseDump.bodySnippet || 'No response body captured.'}
                   </div>
@@ -153,18 +199,28 @@ export function DiagnosticsModal({ log, onClose }: DiagnosticsModalProps) {
   )
 }
 
-function TimelineStep({ name, ms, status }: { name: string, ms: number | null, status: 'success' | 'failed' | 'pending' }) {
+function TimelineStep({
+  name,
+  ms,
+  status
+}: {
+  name: string
+  ms: number | null
+  status: 'success' | 'failed' | 'pending'
+}) {
   return (
     <div className="relative flex items-center gap-4">
       {/* Icon Node */}
-      <div className={`absolute -left-3.5 w-7 h-7 rounded-full border-4 border-[#111118] flex items-center justify-center
+      <div
+        className={`absolute -left-3.5 w-7 h-7 rounded-full border-4 border-[#111118] flex items-center justify-center
         ${status === 'success' ? 'bg-green-500' : status === 'failed' ? 'bg-red-500' : 'bg-[#333]'}
-      `}>
+      `}
+      >
         <span className="material-symbols-outlined text-[14px] text-white font-bold">
           {status === 'success' ? 'check' : status === 'failed' ? 'close' : 'remove'}
         </span>
       </div>
-      
+
       <div className="flex-1 flex justify-between items-center ml-4 bg-[#1a1a24] border border-[#222] p-3 rounded-lg">
         <span className={status === 'pending' ? 'text-gray-500' : 'text-gray-200'}>{name}</span>
         {status !== 'pending' && ms !== null && (

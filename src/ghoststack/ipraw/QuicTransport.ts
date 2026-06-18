@@ -85,7 +85,9 @@ export class QuicTransport {
 
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
-        try { socket.close() } catch {}
+        try {
+          socket.close()
+        } catch {}
         resolve(false)
       }, 2000)
 
@@ -94,7 +96,9 @@ export class QuicTransport {
 
       socket.send(probe, 0, probe.length, port, ip, (err: Error | null) => {
         clearTimeout(timer)
-        try { socket.close() } catch {}
+        try {
+          socket.close()
+        } catch {}
 
         if (err) {
           resolve(false)
@@ -106,7 +110,9 @@ export class QuicTransport {
 
       socket.on('error', () => {
         clearTimeout(timer)
-        try { socket.close() } catch {}
+        try {
+          socket.close()
+        } catch {}
         resolve(false)
       })
     })
@@ -146,9 +152,7 @@ export class QuicTransport {
                 const wildcard = parts.length >= 2 ? `*.${parts.slice(1).join('.')}` : ''
 
                 const matches =
-                  cn === lowerDomain ||
-                  cn === wildcard ||
-                  altNames.includes(lowerDomain)
+                  cn === lowerDomain || cn === wildcard || altNames.includes(lowerDomain)
 
                 socket.destroy()
                 resolve(matches)

@@ -92,7 +92,11 @@ export class ECHHandler {
               }
             } catch {
               socket.destroy()
-              resolve({ success: false, protocol: 'none', error: 'Certificate verification failed' })
+              resolve({
+                success: false,
+                protocol: 'none',
+                error: 'Certificate verification failed'
+              })
             }
           }
         )

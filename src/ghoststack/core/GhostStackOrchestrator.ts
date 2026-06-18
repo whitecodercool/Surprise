@@ -23,6 +23,7 @@ import { StoragePartitioner } from '../privacy/StoragePartitioner'
 import { DNSResolver } from '../dns/DNSResolver'
 import { getRelayPort } from './network/GhostProtocol'
 import { GhostStackProxy } from './GhostStackProxy'
+import { findInstanceByWebContents } from '../../main/index'
 import { ipGeolocationService, GeoResult } from '../../main/services/IpGeolocationService'
 import type { TaskLogEntry, FailureEnvelope } from '../../shared/types/Diagnostics'
 
@@ -99,7 +100,7 @@ export class GhostStackOrchestrator {
   private static readonly WORKER_URLS = [
     'https://ghost-relay-1.ghostbrowser.workers.dev/ingest',
     'https://ghost-relay-2.ghostbrowser.workers.dev/ingest',
-    'https://ghost-relay-3.ghostbrowser.workers.dev/ingest',
+    'https://ghost-relay-3.ghostbrowser.workers.dev/ingest'
   ]
   private static readonly RSA_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEApNHOlNhj3bH0gaVmeK/n
@@ -196,7 +197,6 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     this.uiWebContents = wc
   }
 
-
   /**
    * Get the FingerprintShield instance for injection scripts.
    * @returns FingerprintShield instance
@@ -257,7 +257,9 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     if (cachedBypass) {
       // If we got a navigation failure while a bypass is already cached, it means the bypass FAILED.
       // We must clear it to prevent an infinite reload loop!
-      console.log(`[GhostStack] Cached bypass for ${domain} failed during load. Clearing cache and falling back.`)
+      console.log(
+        `[GhostStack] Cached bypass for ${domain} failed during load. Clearing cache and falling back.`
+      )
       this.cache.clearBypass(domain) // Clear from cache directly
       this.activeBypasses.set(domain, 'blocked')
       this.broadcastStatus()
@@ -287,10 +289,7 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
       let result: { ip: string; engine: string; method: string } | null = null
 
       // Try IPRaw first (unless forced to splitcast)
-      if (
-        this.settings.forceMode !== 'splitcast' &&
-        this.settings.iprawEnabled
-      ) {
+      if (this.settings.forceMode !== 'splitcast' && this.settings.iprawEnabled) {
         try {
           const iprawResult = await this.ipraw.bypass(ipEntry.ip, domain, {
             useECH: this.settings.echEnabled,
@@ -307,11 +306,7 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
       }
 
       // Try SplitCast if IPRaw failed (unless forced to ipraw)
-      if (
-        !result &&
-        this.settings.forceMode !== 'ipraw' &&
-        this.settings.splitcastEnabled
-      ) {
+      if (!result && this.settings.forceMode !== 'ipraw' && this.settings.splitcastEnabled) {
         try {
           const splitResult = await this.splitcast.bypass(ipEntry.ip, domain, url, {
             fragmentCount: this.settings.splitcastFragments
@@ -354,10 +349,24 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
       // All methods failed
       this.activeBypasses.set(domain, 'blocked')
       this.broadcastStatus()
-      this.emitFailureLog(domain, url, ipEntry?.ip || '0.0.0.0', 'UNKNOWN', `Failed to connect. All native engines failed: ${errorDescription}`, firewallVendor)
+      this.emitFailureLog(
+        domain,
+        url,
+        ipEntry?.ip || '0.0.0.0',
+        'UNKNOWN',
+        `Failed to connect. All native engines failed: ${errorDescription}`,
+        firewallVendor
+      )
       return null
     } catch (e: any) {
-      this.emitFailureLog(domain, url, '0.0.0.0', 'UNKNOWN', e?.message || 'Unexpected failure during bypass', firewallVendor)
+      this.emitFailureLog(
+        domain,
+        url,
+        '0.0.0.0',
+        'UNKNOWN',
+        e?.message || 'Unexpected failure during bypass',
+        firewallVendor
+      )
       return null
     }
   }
@@ -405,8 +414,10 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
       activeEngine,
       activeMethod,
       networkEnv: this.networkEnv,
-      isBypassing: this.activeBypasses.size > 0 && !Array.from(this.activeBypasses.values()).every(v => v === 'off'),
-      bypassedDomains: bypasses.map(b => b.domain),
+      isBypassing:
+        this.activeBypasses.size > 0 &&
+        !Array.from(this.activeBypasses.values()).every((v) => v === 'off'),
+      bypassedDomains: bypasses.map((b) => b.domain),
       stats: {
         sitesBypassed: stats.sitesBypassed,
         iprawCount: stats.iprawCount,
@@ -433,8 +444,12 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     const validated: Partial<GhostStackSettings> = {}
 
     const boolFields = [
-      'iprawEnabled', 'preferQuic', 'echEnabled', 'trafficShapingEnabled',
-      'splitcastEnabled', 'temporalEnabled'
+      'iprawEnabled',
+      'preferQuic',
+      'echEnabled',
+      'trafficShapingEnabled',
+      'splitcastEnabled',
+      'temporalEnabled'
     ] as const
     for (const field of boolFields) {
       if (field in updates && typeof updates[field] === 'boolean') {
@@ -442,11 +457,17 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
       }
     }
 
-    if ('splitcastFragments' in updates && ([3, 5, 7] as number[]).includes(updates.splitcastFragments as number)) {
+    if (
+      'splitcastFragments' in updates &&
+      ([3, 5, 7] as number[]).includes(updates.splitcastFragments as number)
+    ) {
       validated.splitcastFragments = updates.splitcastFragments as 3 | 5 | 7
     }
 
-    if ('forceMode' in updates && (['auto', 'ipraw', 'splitcast', 'direct'] as string[]).includes(updates.forceMode as string)) {
+    if (
+      'forceMode' in updates &&
+      (['auto', 'ipraw', 'splitcast', 'direct'] as string[]).includes(updates.forceMode as string)
+    ) {
       validated.forceMode = updates.forceMode as GhostStackSettings['forceMode']
     }
 
@@ -476,19 +497,21 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     blockProfile: BlockProfile | null,
     attemptedMethods: string[]
   ): string {
-    const esc = (s: string) => s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
+    const esc = (s: string) =>
+      s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
 
     const blockType = esc(blockProfile?.blockType || 'Unknown')
     const signature = esc(blockProfile?.networkSignature || 'Unknown')
     const safeDomain = esc(domain)
-    const methodsList = attemptedMethods.length > 0
-      ? attemptedMethods.map(m => `<li>${esc(m)}</li>`).join('')
-      : '<li>No methods available</li>'
+    const methodsList =
+      attemptedMethods.length > 0
+        ? attemptedMethods.map((m) => `<li>${esc(m)}</li>`).join('')
+        : '<li>No methods available</li>'
 
     return `<!DOCTYPE html>
 <html>
@@ -687,7 +710,7 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
 
           if (!isGhost) return callback({}) // Native flow
         }
-        
+
         const relayUrl = `http://127.0.0.1:${port}/r?u=${encodeURIComponent(url)}`
         return callback({ redirectURL: relayUrl })
       }
@@ -727,8 +750,12 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
 
       // b. Rigorously strip all CSP and Trusted Types headers (unless it's a captcha/challenge provider)
       if (!details.responseHeaders) details.responseHeaders = {}
-      
-      const isChallengeProvider = details.url && (details.url.includes('challenges.cloudflare.com') || details.url.includes('hcaptcha.com') || details.url.includes('recaptcha.net'));
+
+      const isChallengeProvider =
+        details.url &&
+        (details.url.includes('challenges.cloudflare.com') ||
+          details.url.includes('hcaptcha.com') ||
+          details.url.includes('recaptcha.net'))
 
       if (!isChallengeProvider) {
         const headersToStrip = [
@@ -759,75 +786,100 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
   }
 
   private registerIPCHandlers(): void {
-    ipcMain.handle('ghoststack:get-status', () => {
-      return this.getStatus()
+    // Only register handlers once globally
+    if ((global as any).ghoststackHandlersRegistered) return
+    ;(global as any).ghoststackHandlersRegistered = true
+
+    ipcMain.handle('ghoststack:get-status', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst ? inst.ghostStack.getStatus() : this.getStatus()
     })
 
-    ipcMain.handle('ghoststack:get-settings', () => {
-      return this.getSettings()
+    ipcMain.handle('ghoststack:get-settings', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst ? inst.ghostStack.getSettings() : this.getSettings()
     })
 
-    ipcMain.on('ghoststack:update-settings', (_event, updates) => {
-      this.updateSettings(updates)
+    ipcMain.on('ghoststack:update-settings', (event, updates) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) inst.ghostStack.updateSettings(updates)
     })
 
-    ipcMain.handle('ghoststack:rescan-network', async () => {
-      return await this.rescanNetwork()
+    ipcMain.handle('ghoststack:rescan-network', async (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst ? await inst.ghostStack.rescanNetwork() : await this.rescanNetwork()
     })
 
-    ipcMain.handle('ghoststack:get-network-env', () => {
-      return this.networkEnv
+    ipcMain.handle('ghoststack:get-network-env', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst ? inst.ghostStack.networkEnv : this.networkEnv
     })
 
     // Privacy settings
-    ipcMain.handle('ghoststack:get-privacy-settings', () => {
-      return this.fingerprintShield.getSettings()
+    ipcMain.handle('ghoststack:get-privacy-settings', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst
+        ? inst.ghostStack.fingerprintShield.getSettings()
+        : this.fingerprintShield.getSettings()
     })
 
-    ipcMain.on('ghoststack:update-privacy-settings', (_event, settings) => {
-      this.fingerprintShield.updateSettings(settings)
+    ipcMain.on('ghoststack:update-privacy-settings', (event, settings) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) inst.ghostStack.fingerprintShield.updateSettings(settings)
     })
 
-    ipcMain.on('ghoststack:set-privacy-level', (_event, level) => {
-      this.fingerprintShield.setLevel(level)
+    ipcMain.on('ghoststack:set-privacy-level', (event, level) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) inst.ghostStack.fingerprintShield.setLevel(level)
     })
 
     // Blocking settings
-    ipcMain.handle('ghoststack:get-blocking-stats', () => {
-      return this.blockingEngine.getStats()
+    ipcMain.handle('ghoststack:get-blocking-stats', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst ? inst.ghostStack.blockingEngine.getStats() : this.blockingEngine.getStats()
     })
 
-    ipcMain.handle('ghoststack:get-blocking-settings', () => {
-      return this.blockingEngine.getSettings()
+    ipcMain.handle('ghoststack:get-blocking-settings', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst ? inst.ghostStack.blockingEngine.getSettings() : this.blockingEngine.getSettings()
     })
 
-    ipcMain.on('ghoststack:update-blocking-settings', (_event, settings) => {
-      this.blockingEngine.updateSettings(settings)
+    ipcMain.on('ghoststack:update-blocking-settings', (event, settings) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) inst.ghostStack.blockingEngine.updateSettings(settings)
     })
 
-    ipcMain.on('ghoststack:add-allowlist', (_event, domain) => {
-      this.blockingEngine.addToAllowlist(domain)
+    ipcMain.on('ghoststack:add-allowlist', (event, domain) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) inst.ghostStack.blockingEngine.addToAllowlist(domain)
     })
 
-    ipcMain.on('ghoststack:remove-allowlist', (_event, domain) => {
-      this.blockingEngine.removeFromAllowlist(domain)
+    ipcMain.on('ghoststack:remove-allowlist', (event, domain) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) inst.ghostStack.blockingEngine.removeFromAllowlist(domain)
     })
 
-    ipcMain.handle('ghoststack:get-allowlist', () => {
-      return this.blockingEngine.getAllowlist()
+    ipcMain.handle('ghoststack:get-allowlist', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst
+        ? inst.ghostStack.blockingEngine.getAllowlist()
+        : this.blockingEngine.getAllowlist()
     })
 
     // DNS settings
-    ipcMain.handle('ghoststack:get-dns-settings', () => {
-      return this.dnsResolver.getSettings()
+    ipcMain.handle('ghoststack:get-dns-settings', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst ? inst.ghostStack.dnsResolver.getSettings() : this.dnsResolver.getSettings()
     })
 
-    ipcMain.on('ghoststack:update-dns-settings', (_event, settings) => {
-      this.dnsResolver.updateSettings(settings)
+    ipcMain.on('ghoststack:update-dns-settings', (event, settings) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) inst.ghostStack.dnsResolver.updateSettings(settings)
     })
 
-    ipcMain.handle('ghoststack:flush-dns-cache', () => {
-      this.dnsResolver.flushCache()
+    ipcMain.handle('ghoststack:flush-dns-cache', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) inst.ghostStack.dnsResolver.flushCache()
       return true
     })
 
@@ -837,13 +889,19 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     })
 
     // Fingerprint test
-    ipcMain.handle('ghoststack:test-fingerprint', () => {
-      return this.fingerprintShield.getTestResults()
+    ipcMain.handle('ghoststack:test-fingerprint', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      return inst
+        ? inst.ghostStack.fingerprintShield.getTestResults()
+        : this.fingerprintShield.getTestResults()
     })
 
     // Clear all data
-    ipcMain.on('ghoststack:clear-all-data', () => {
-      this.cache.clear()
+    ipcMain.on('ghoststack:clear-all-data', (event) => {
+      const inst = findInstanceByWebContents(event.sender)
+      if (inst) {
+        inst.ghostStack.cache.clear()
+      }
       session.defaultSession.clearStorageData()
       session.defaultSession.clearCache()
     })
@@ -868,32 +926,64 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     } catch {}
   }
 
-  private emitFailureLog(domain: string, url: string, _ip: string, errorType: FailureEnvelope['errorType'], errorMessage: string, firewallVendor?: string): void {
+  private emitFailureLog(
+    domain: string,
+    url: string,
+    _ip: string,
+    errorType: FailureEnvelope['errorType'],
+    errorMessage: string,
+    firewallVendor?: string
+  ): void {
     if (!this.uiWebContents || this.uiWebContents.isDestroyed()) return
-    const geo = this.userGeo || { ip: '', region: 'Unknown', country: 'Unknown', countryCode: '', city: 'Unknown', isp: 'Unknown', asn: '', cdn: '' }
+    const geo = this.userGeo || {
+      ip: '',
+      region: 'Unknown',
+      country: 'Unknown',
+      countryCode: '',
+      city: 'Unknown',
+      isp: 'Unknown',
+      asn: '',
+      cdn: ''
+    }
     const logEntry: TaskLogEntry = {
-      id: `log-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+      id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       deviceId: this.deviceId,
       timestamp: Date.now(),
       url,
       status: 'failed',
-      networkInfo: { ip: geo.ip, region: geo.region, country: geo.country, countryCode: geo.countryCode, isp: geo.isp, city: geo.city, asn: geo.asn, cdn: geo.cdn },
-        failureDiagnostics: {
-          errorType,
-          errorMessage,
-          firewallVendor,
-          timeline: { dnsMs: 15, tcpMs: 45, tlsMs: null, httpMs: null, failedAtStep: 'TLS' },
-          reproductionCurl: `curl -v -H "Host: ${domain}" -H "User-Agent: Mozilla/5.0" ${url}`,
-          tlsState: {
-            ja3Fingerprint: '771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,29-23-24,0',
-            cipherSuiteUsed: 'TLS_AES_128_GCM_SHA256'
-          },
-          responseDump: { statusCode: 0, headers: {}, bodySnippet: 'Connection Reset By Peer / Handshake Failed' },
-          appState: {
-            activeProxy: 'Direct',
-            userAgentInjected: this.fingerprintShield.getSettings().userAgentRotation ? 'Spoofed' : 'Original'
-          }
+      networkInfo: {
+        ip: geo.ip,
+        region: geo.region,
+        country: geo.country,
+        countryCode: geo.countryCode,
+        isp: geo.isp,
+        city: geo.city,
+        asn: geo.asn,
+        cdn: geo.cdn
+      },
+      failureDiagnostics: {
+        errorType,
+        errorMessage,
+        firewallVendor,
+        timeline: { dnsMs: 15, tcpMs: 45, tlsMs: null, httpMs: null, failedAtStep: 'TLS' },
+        reproductionCurl: `curl -v -H "Host: ${domain}" -H "User-Agent: Mozilla/5.0" ${url}`,
+        tlsState: {
+          ja3Fingerprint:
+            '771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,29-23-24,0',
+          cipherSuiteUsed: 'TLS_AES_128_GCM_SHA256'
+        },
+        responseDump: {
+          statusCode: 0,
+          headers: {},
+          bodySnippet: 'Connection Reset By Peer / Handshake Failed'
+        },
+        appState: {
+          activeProxy: 'Direct',
+          userAgentInjected: this.fingerprintShield.getSettings().userAgentRotation
+            ? 'Spoofed'
+            : 'Original'
         }
+      }
     }
     this.uiWebContents.send('ghoststack:log-entry', logEntry)
     this.queueForWorker(logEntry)
@@ -901,30 +991,72 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
 
   public reportDirectSuccess(url: string): void {
     if (!this.uiWebContents || this.uiWebContents.isDestroyed()) return
-    const geo = this.userGeo || { ip: '', region: 'Unknown', country: 'Unknown', countryCode: '', city: 'Unknown', isp: 'Unknown', asn: '', cdn: '' }
+    const geo = this.userGeo || {
+      ip: '',
+      region: 'Unknown',
+      country: 'Unknown',
+      countryCode: '',
+      city: 'Unknown',
+      isp: 'Unknown',
+      asn: '',
+      cdn: ''
+    }
     const logEntry: TaskLogEntry = {
       id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       deviceId: this.deviceId,
       timestamp: Date.now(),
       url,
       status: 'success',
-      networkInfo: { ip: geo.ip, region: geo.region, country: geo.country, countryCode: geo.countryCode, isp: geo.isp, city: geo.city, asn: geo.asn, cdn: geo.cdn },
+      networkInfo: {
+        ip: geo.ip,
+        region: geo.region,
+        country: geo.country,
+        countryCode: geo.countryCode,
+        isp: geo.isp,
+        city: geo.city,
+        asn: geo.asn,
+        cdn: geo.cdn
+      },
       successInfo: { engine: 'direct', method: 'direct', bypassTimeMs: 0 }
     }
     this.uiWebContents.send('ghoststack:log-entry', logEntry)
     this.queueForWorker(logEntry)
   }
 
-  private emitSuccessLog(url: string, _ip: string, engine: string, method: string, bypassTimeMs: number): void {
+  private emitSuccessLog(
+    url: string,
+    _ip: string,
+    engine: string,
+    method: string,
+    bypassTimeMs: number
+  ): void {
     if (!this.uiWebContents || this.uiWebContents.isDestroyed()) return
-    const geo = this.userGeo || { ip: '', region: 'Unknown', country: 'Unknown', countryCode: '', city: 'Unknown', isp: 'Unknown', asn: '', cdn: '' }
+    const geo = this.userGeo || {
+      ip: '',
+      region: 'Unknown',
+      country: 'Unknown',
+      countryCode: '',
+      city: 'Unknown',
+      isp: 'Unknown',
+      asn: '',
+      cdn: ''
+    }
     const logEntry: TaskLogEntry = {
       id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       deviceId: this.deviceId,
       timestamp: Date.now(),
       url,
       status: 'success',
-      networkInfo: { ip: geo.ip, region: geo.region, country: geo.country, countryCode: geo.countryCode, isp: geo.isp, city: geo.city, asn: geo.asn, cdn: geo.cdn },
+      networkInfo: {
+        ip: geo.ip,
+        region: geo.region,
+        country: geo.country,
+        countryCode: geo.countryCode,
+        isp: geo.isp,
+        city: geo.city,
+        asn: geo.asn,
+        cdn: geo.cdn
+      },
       successInfo: { engine, method, bypassTimeMs }
     }
     this.uiWebContents.send('ghoststack:log-entry', logEntry)
@@ -951,10 +1083,15 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
     setInterval(() => this.flushTelemetry(), 2 * 60 * 1000)
 
     // Fetch user's real outbound IP + geo once at startup — reused in every log entry
-    ipGeolocationService.fetchUserGeo().then(geo => {
-      this.userGeo = geo
-      console.log(`[GhostStack] User geo resolved: ${geo.city}, ${geo.region}, ${geo.country} — ${geo.isp}`)
-    }).catch(() => {})
+    ipGeolocationService
+      .fetchUserGeo()
+      .then((geo) => {
+        this.userGeo = geo
+        console.log(
+          `[GhostStack] User geo resolved: ${geo.city}, ${geo.region}, ${geo.country} — ${geo.isp}`
+        )
+      })
+      .catch(() => {})
   }
 
   // ─── Telemetry: queue ────────────────────────────────────────────────────────
@@ -975,7 +1112,7 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
       // Encrypt the whole batch as one blob
       const plaintext = JSON.stringify({ deviceId: this.deviceId, entries: batch })
       const aesKey = forge.random.getBytesSync(32)
-      const iv     = forge.random.getBytesSync(16)
+      const iv = forge.random.getBytesSync(16)
 
       const cipher = forge.cipher.createCipher('AES-GCM', aesKey)
       cipher.start({ iv })
@@ -989,14 +1126,16 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
 
       const payload = `GHOST_ENC:${forge.util.encode64(encryptedAesKey)}.${forge.util.encode64(iv + cipher.mode.tag.getBytes() + cipher.output.getBytes())}`
 
-      const ts  = Date.now()
+      const ts = Date.now()
 
-      const workerIndex = parseInt(crypto.createHash('md5').update(this.deviceId).digest('hex').slice(0, 4), 16) % GhostStackOrchestrator.WORKER_URLS.length
+      const workerIndex =
+        parseInt(crypto.createHash('md5').update(this.deviceId).digest('hex').slice(0, 4), 16) %
+        GhostStackOrchestrator.WORKER_URLS.length
       fetch(GhostStackOrchestrator.WORKER_URLS[workerIndex], {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload, ts, deviceId: this.deviceId })
-      }).catch(err => {
+      }).catch((err) => {
         console.error('[GhostStack] Worker flush failed, re-queuing batch:', err.message)
         // Re-queue if possible (cap at 100 to avoid unbounded memory growth)
         if (this.telemetryQueue.length < 100) this.telemetryQueue.unshift(...batch)
@@ -1005,7 +1144,6 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
       console.error('[GhostStack] Telemetry encryption failed:', err)
     }
   }
-
 
   /**
    * Get the GhostStack proxy instance.
@@ -1021,11 +1159,13 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
    */
   async bypassMITM(domain: string): Promise<void> {
     if (this.mitmBypassDomains.has(domain)) return
-    
-    console.log(`[GhostStack] MITM confirmed for ${domain}. Bypassing TCP proxy to enable QUIC/UDP...`)
+
+    console.log(
+      `[GhostStack] MITM confirmed for ${domain}. Bypassing TCP proxy to enable QUIC/UDP...`
+    )
     this.mitmBypassDomains.add(domain)
     await this.updateProxyRules()
-    
+
     this.activeBypasses.set(domain, 'quic/UDP_NATIVE')
     this.broadcastStatus()
     this.sendToast(domain, 'quic/UDP_NATIVE')
@@ -1034,13 +1174,13 @@ LtMuviSCu9FjlPOvkCU4RYkCAwEAAQ==
   /**
    * Update the Chromium proxy rules to exclude domains in mitmBypassDomains.
    */
-  private async updateProxyRules(): Promise<void> {
+  public async updateProxyRules(): Promise<void> {
     if (!this.proxyPort) return
 
     let bypassRules = 'localhost,127.0.0.1,<local>'
     if (this.mitmBypassDomains.size > 0) {
       const domains = Array.from(this.mitmBypassDomains)
-      bypassRules += ',' + domains.map(d => `.${d}`).join(',')
+      bypassRules += ',' + domains.map((d) => `.${d}`).join(',')
     }
 
     await session.defaultSession.setProxy({

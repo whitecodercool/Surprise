@@ -72,7 +72,7 @@ export default function AddressBar() {
 
   const getShortUrl = (): string => {
     if (isFocused) return inputValue
-    if (!displayUrl || displayUrl.startsWith('about:') || displayUrl.startsWith('flux:')) return ''
+    if (!displayUrl || displayUrl.startsWith('about:') || displayUrl.startsWith('ghost:')) return ''
     try {
       const url = new URL(displayUrl)
       const host = url.hostname.replace(/^www\./, '')
@@ -87,31 +87,44 @@ export default function AddressBar() {
   const suggestions = useMemo(() => {
     if (!inputValue) {
       // Empty input: show top sites or recently closed as a proxy for history
-      return state.recentlyClosed.slice(0, 4).map(ct => ({
-        type: 'history',
-        title: ct.title || ct.url,
-        url: ct.url,
-        icon: '🕒'
-      })).concat([
-        { type: 'bookmark', title: 'Google', url: 'https://google.com', icon: '⭐' },
-        { type: 'bookmark', title: 'GitHub', url: 'https://github.com', icon: '⭐' }
-      ])
+      return state.recentlyClosed
+        .slice(0, 4)
+        .map((ct) => ({
+          type: 'history',
+          title: ct.title || ct.url,
+          url: ct.url,
+          icon: '🕒'
+        }))
+        .concat([
+          { type: 'bookmark', title: 'Google', url: 'https://google.com', icon: '⭐' },
+          { type: 'bookmark', title: 'GitHub', url: 'https://github.com', icon: '⭐' }
+        ])
     }
 
     const q = inputValue.toLowerCase()
-    
+
     // Always provide a search suggestion
     const items = [
-      { type: 'search', title: `Search for "${inputValue}"`, url: `https://google.com/search?q=${encodeURIComponent(inputValue)}`, icon: '🔍' }
+      {
+        type: 'search',
+        title: `Search for "${inputValue}"`,
+        url: `https://google.com/search?q=${encodeURIComponent(inputValue)}`,
+        icon: '🔍'
+      }
     ]
 
     // If it looks like a URL, add a navigate suggestion
     if (/^[^\s]+\.[^\s]+$/.test(inputValue)) {
-      items.push({ type: 'navigate', title: `Go to ${inputValue}`, url: `https://${inputValue}`, icon: '🌐' })
+      items.push({
+        type: 'navigate',
+        title: `Go to ${inputValue}`,
+        url: `https://${inputValue}`,
+        icon: '🌐'
+      })
     }
 
     // Filter recently closed as history
-    state.recentlyClosed.forEach(ct => {
+    state.recentlyClosed.forEach((ct) => {
       if ((ct.title && ct.title.toLowerCase().includes(q)) || ct.url.toLowerCase().includes(q)) {
         items.push({ type: 'history', title: ct.title || ct.url, url: ct.url, icon: '🕒' })
       }
@@ -127,20 +140,20 @@ export default function AddressBar() {
 
   return (
     <div className="address-bar-container" ref={containerRef}>
-      <form 
-        onSubmit={handleSubmit} 
+      <form
+        onSubmit={handleSubmit}
         className={`address-bar flex items-center gap-2.5 px-4 ${isFocused ? 'focused' : ''}`}
         style={{ height: 40 }}
       >
         {/* Loading Progress Bar at bottom */}
-        <div 
-          className="address-bar-progress" 
-          style={{ width: progressWidth, opacity: progressOpacity }} 
+        <div
+          className="address-bar-progress"
+          style={{ width: progressWidth, opacity: progressOpacity }}
         />
 
         {/* Shield Icon */}
         {!isFocused && activeTab && (
-          <button 
+          <button
             type="button"
             className="flex-shrink-0 flex items-center justify-center nav-btn"
             style={{ width: 20, height: 20, marginLeft: -4 }}
@@ -150,8 +163,24 @@ export default function AddressBar() {
             }}
             title="Privacy Protections"
           >
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ color: state.ghoststackStatus && state.ghoststackStatus.activeEngine !== 'off' ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
-              <path d="M6.5 1.5l-5 2v4c0 3 5 5 5 5s5-2 5-5v-4l-5-2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 13 13"
+              fill="none"
+              style={{
+                color:
+                  state.ghoststackStatus && state.ghoststackStatus.activeEngine !== 'off'
+                    ? 'var(--color-accent)'
+                    : 'var(--color-text-muted)'
+              }}
+            >
+              <path
+                d="M6.5 1.5l-5 2v4c0 3 5 5 5 5s5-2 5-5v-4l-5-2z"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         )}
@@ -170,17 +199,46 @@ export default function AddressBar() {
               }}
             />
           ) : activeTab?.favicon && !isFocused ? (
-            <img src={activeTab.favicon} alt="" style={{ width: 14, height: 14, borderRadius: 3 }} />
+            <img
+              src={activeTab.favicon}
+              alt=""
+              style={{ width: 14, height: 14, borderRadius: 3 }}
+            />
           ) : isSecure ? (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: 'var(--color-text-muted)' }}>
-              <path d="M3.5 5.5V4a2.5 2.5 0 015 0v1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              <rect x="2.5" y="5.5" width="7" height="4.5" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              <path
+                d="M3.5 5.5V4a2.5 2.5 0 015 0v1.5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+              <rect
+                x="2.5"
+                y="5.5"
+                width="7"
+                height="4.5"
+                rx="1.2"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
             </svg>
           ) : (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: 'var(--color-text-muted)' }}>
-              <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.1"/>
-              <path d="M6 3.5v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              <circle cx="6" cy="8.5" r="0.5" fill="currentColor"/>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1.1" />
+              <path d="M6 3.5v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              <circle cx="6" cy="8.5" r="0.5" fill="currentColor" />
             </svg>
           )}
         </div>
@@ -199,7 +257,7 @@ export default function AddressBar() {
               handleSubmit(e as any)
             }
           }}
-          placeholder="Search or enter website name"
+          placeholder="Search or type web address"
           className="flex-1 bg-transparent border-none"
           style={{
             fontSize: 13,
@@ -217,55 +275,132 @@ export default function AddressBar() {
         {/* Action Buttons (Reader Mode, Copy URL, QR) */}
         {!isFocused && activeTab && (
           <div className="flex items-center gap-0.5 ml-auto">
-            <button type="button" className="address-action-btn" title="Reader Mode" onClick={(e) => e.preventDefault()}>
+            <button
+              type="button"
+              className="address-action-btn"
+              title="Reader Mode"
+              onClick={(e) => e.preventDefault()}
+            >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M2.5 3.5h9M2.5 7h9M2.5 10.5h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <path
+                  d="M2.5 3.5h9M2.5 7h9M2.5 10.5h6"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
-            <button type="button" className="address-action-btn" title="Copy Link" onClick={(e) => { e.preventDefault(); handleCopyUrl(); }}>
+            <button
+              type="button"
+              className="address-action-btn"
+              title="Copy Link"
+              onClick={(e) => {
+                e.preventDefault()
+                handleCopyUrl()
+              }}
+            >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.1"/>
-                <path d="M3.5 9.5h-1a1 1 0 01-1-1v-5a1 1 0 011-1h5a1 1 0 011 1v1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+                <rect
+                  x="3.5"
+                  y="3.5"
+                  width="7"
+                  height="7"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                />
+                <path
+                  d="M3.5 9.5h-1a1 1 0 01-1-1v-5a1 1 0 011-1h5a1 1 0 011 1v1"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
-            <button type="button" className="address-action-btn" title="Share via QR" onClick={(e) => e.preventDefault()}>
+            <button
+              type="button"
+              className="address-action-btn"
+              title="Share via QR"
+              onClick={(e) => e.preventDefault()}
+            >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                <rect x="2" y="2" width="3.5" height="3.5" rx="0.5" stroke="currentColor" strokeWidth="1"/>
-                <rect x="7.5" y="2" width="3.5" height="3.5" rx="0.5" stroke="currentColor" strokeWidth="1"/>
-                <rect x="2" y="7.5" width="3.5" height="3.5" rx="0.5" stroke="currentColor" strokeWidth="1"/>
-                <path d="M8 8h1M8 10.5h2.5M10.5 8v1.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+                <rect
+                  x="2"
+                  y="2"
+                  width="3.5"
+                  height="3.5"
+                  rx="0.5"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                />
+                <rect
+                  x="7.5"
+                  y="2"
+                  width="3.5"
+                  height="3.5"
+                  rx="0.5"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                />
+                <rect
+                  x="2"
+                  y="7.5"
+                  width="3.5"
+                  height="3.5"
+                  rx="0.5"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                />
+                <path
+                  d="M8 8h1M8 10.5h2.5M10.5 8v1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
           </div>
         )}
 
         {/* Shortcut hint when empty */}
-        {!isFocused && !activeTab && (
-          <span className="kbd flex-shrink-0">⌘L</span>
-        )}
+        {!isFocused && !activeTab && <span className="kbd flex-shrink-0">⌘L</span>}
       </form>
 
       {/* Suggestions Dropdown */}
       <div className={`address-bar-dropdown flex flex-col py-1 ${dropdownOpen ? 'open' : ''}`}>
         {suggestions.length > 0 ? (
           suggestions.map((suggestion, i) => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className="dropdown-item"
               onMouseDown={(e) => {
                 e.preventDefault() // prevent blur
                 handleSuggestionClick(suggestion.url)
               }}
             >
-              <div className="dropdown-icon">
-                {suggestion.icon}
-              </div>
+              <div className="dropdown-icon">{suggestion.icon}</div>
               <div className="flex flex-col flex-1 overflow-hidden">
-                <span style={{ fontSize: 13, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--color-text-primary)',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    overflow: 'hidden'
+                  }}
+                >
                   {suggestion.title}
                 </span>
                 {suggestion.type !== 'search' && suggestion.type !== 'navigate' && (
-                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--color-text-muted)',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden'
+                    }}
+                  >
                     {suggestion.url}
                   </span>
                 )}
@@ -278,8 +413,6 @@ export default function AddressBar() {
           </div>
         )}
       </div>
-
-
     </div>
   )
 }

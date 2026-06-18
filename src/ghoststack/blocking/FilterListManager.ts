@@ -19,10 +19,14 @@ export class FilterListManager {
   }
 
   /** Get all blocked domains */
-  getDomains(): Set<string> { return this.domains }
+  getDomains(): Set<string> {
+    return this.domains
+  }
 
   /** Add a domain from filter list */
-  addDomain(domain: string): void { this.domains.add(domain) }
+  addDomain(domain: string): void {
+    this.domains.add(domain)
+  }
 
   /** Schedule weekly auto-update */
   private scheduleUpdate(): void {
@@ -39,7 +43,9 @@ export class FilterListManager {
         const text = await this.fetchText(url)
         this.parseFilterList(text)
         this.parseFilterList(text)
-      } catch { /* use bundled */ }
+      } catch {
+        /* use bundled */
+      }
     }
   }
 
@@ -61,11 +67,22 @@ export class FilterListManager {
       const req = net.request({ url, method: 'GET' })
       req.on('response', (res) => {
         let body = ''
-        res.on('data', c => { body += c.toString() })
-        res.on('end', () => { clearTimeout(timer); resolve(body) })
-        res.on('error', () => { clearTimeout(timer); reject(new Error('err')) })
+        res.on('data', (c) => {
+          body += c.toString()
+        })
+        res.on('end', () => {
+          clearTimeout(timer)
+          resolve(body)
+        })
+        res.on('error', () => {
+          clearTimeout(timer)
+          reject(new Error('err'))
+        })
       })
-      req.on('error', () => { clearTimeout(timer); reject(new Error('err')) })
+      req.on('error', () => {
+        clearTimeout(timer)
+        reject(new Error('err'))
+      })
       req.end()
     })
   }

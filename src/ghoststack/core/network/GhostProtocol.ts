@@ -25,7 +25,6 @@ async function getWeb3GatewayUrl(originalUrl: string): Promise<string> {
   return originalUrl
 }
 
-
 /**
  * GhostProtocol v5 — Local Media Relay
  *
@@ -112,16 +111,21 @@ let blockedBaseDomain = ''
 // ═══════════════════════════════════════════════════
 function isPublicUrl(raw: string): boolean {
   let url: URL
-  try { url = new URL(raw) } catch { return false }
+  try {
+    url = new URL(raw)
+  } catch {
+    return false
+  }
   if (url.protocol !== 'https:') return false
   const h = url.hostname
   if (h === 'localhost' || h === '127.0.0.1' || h === '::1') return false
   if (
-    h.startsWith('10.')       ||
-    h.startsWith('192.168.')  ||
-    h.startsWith('169.254.')  ||
+    h.startsWith('10.') ||
+    h.startsWith('192.168.') ||
+    h.startsWith('169.254.') ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(h)
-  ) return false
+  )
+    return false
   return true
 }
 
@@ -255,13 +259,13 @@ function startLocalRelay(): Promise<number> {
           const finalUrl = await getWeb3GatewayUrl(targetUrl)
           response = await GhostEngine.fetch(finalUrl, fetchOptions)
           if (response.ok) {
-            console.log(`[GhostProtocol] ✅ Relay ${response.status}: ${targetUrl.substring(0, 80)}`)
+            console.log(
+              `[GhostProtocol] ✅ Relay ${response.status}: ${targetUrl.substring(0, 80)}`
+            )
           }
         } catch (engineErr) {
           console.warn(`[GhostProtocol] GhostEngine failed for ${targetUrl}:`, engineErr)
         }
-
-
 
         if (!response) {
           console.error(`[GhostProtocol] ❌ All engines failed for: ${targetUrl}`)
@@ -270,8 +274,7 @@ function startLocalRelay(): Promise<number> {
           return
         }
 
-        const mime =
-          getMime(targetUrl) || response.headers.get('content-type') || 'text/plain'
+        const mime = getMime(targetUrl) || response.headers.get('content-type') || 'text/plain'
 
         const resHeaders: Record<string, string> = {
           'Content-Type': mime,
@@ -294,7 +297,8 @@ function startLocalRelay(): Promise<number> {
 
           if (mime.includes('mpegurl') || mime.includes('m3u8') || targetUrl.includes('.m3u8')) {
             const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1)
-            const relay = (u: string) => `http://127.0.0.1:${localRelayPort}/r?u=${encodeURIComponent(u)}`
+            const relay = (u: string) =>
+              `http://127.0.0.1:${localRelayPort}/r?u=${encodeURIComponent(u)}`
             text = text
               .split('\n')
               .map((line) => {
@@ -320,8 +324,14 @@ function startLocalRelay(): Promise<number> {
             // Patch Google IMA SDK protocol check so it doesn't crash the video player
             text = text.replace(/document\.location\.protocol/g, '"https:"')
             text = text.replace(/window\.location\.protocol/g, '"https:"')
-            text = text.replace(/throw Error\("IMA SDK is either not loaded from a google domain/g, 'console.warn("Patched IMA SDK')
-            text = text.replace(/throw new Error\("IMA SDK is either not loaded from a google domain/g, 'console.warn("Patched IMA SDK')
+            text = text.replace(
+              /throw Error\("IMA SDK is either not loaded from a google domain/g,
+              'console.warn("Patched IMA SDK'
+            )
+            text = text.replace(
+              /throw new Error\("IMA SDK is either not loaded from a google domain/g,
+              'console.warn("Patched IMA SDK'
+            )
           }
 
           const finalBuf = Buffer.from(text, 'utf-8')
@@ -439,8 +449,6 @@ export async function initializeGhostProtocol(): Promise<void> {
         console.warn(`[GhostProtocol] GhostEngine failed for ${realUrl}:`, engineErr)
       }
 
-
-
       if (!resp) {
         throw new Error(`All bypass engines failed (no response)`)
       }
@@ -453,11 +461,14 @@ export async function initializeGhostProtocol(): Promise<void> {
           'Content-Type': mime,
           'Access-Control-Allow-Origin': '*'
         }
-        
+
         // CRITICAL for video players: pass Range headers back
-        if (resp.headers.has('content-length')) headers['Content-Length'] = resp.headers.get('content-length')!
-        if (resp.headers.has('content-range')) headers['Content-Range'] = resp.headers.get('content-range')!
-        if (resp.headers.has('accept-ranges')) headers['Accept-Ranges'] = resp.headers.get('accept-ranges')!
+        if (resp.headers.has('content-length'))
+          headers['Content-Length'] = resp.headers.get('content-length')!
+        if (resp.headers.has('content-range'))
+          headers['Content-Range'] = resp.headers.get('content-range')!
+        if (resp.headers.has('accept-ranges'))
+          headers['Accept-Ranges'] = resp.headers.get('accept-ranges')!
 
         // Return the raw stream directly instead of buffering the entire file into RAM!
         // This allows video players to perform chunked buffering properly.
@@ -480,19 +491,23 @@ export async function initializeGhostProtocol(): Promise<void> {
     } catch (err) {
       console.error('[GhostProtocol] Error:', err)
       const errMsg = String(err)
-      
+
       // Distinguish DNS failures from bypass failures
       let title = 'GhostStack — relay error'
       let detail = String(err)
-      
-      if (errMsg.includes('domain may not exist') || errMsg.includes('ENOTFOUND') || errMsg.includes('DNS resolution failed')) {
+
+      if (
+        errMsg.includes('domain may not exist') ||
+        errMsg.includes('ENOTFOUND') ||
+        errMsg.includes('DNS resolution failed')
+      ) {
         title = 'GhostStack — domain not found'
         detail = `The domain could not be resolved via any DNS server (including encrypted DoH). This domain may not exist or may be completely unreachable.`
       } else if (errMsg.includes('All bypass engines failed')) {
         title = 'GhostStack — bypass failed'
         detail = `GhostStack tried all available bypass methods but the site returned an error. The site may be down or blocking all connections.`
       }
-      
+
       // Return a proper error Response — throwing from a protocol handler causes ERR_UNEXPECTED
       // and triggers an infinite retry loop in TabManager's did-fail-load handler.
       return new Response(
@@ -570,9 +585,15 @@ function rewriteHtml(html: string, isWeb3: boolean = false): string {
   html = html.replace(/\s+integrity=["'][^"']*["']/gi, '')
 
   // Strip CSP and Trusted Types meta tags that could block our local relay or inline scripts
-  html = html.replace(/<meta[^>]*http-equiv=["']?(?:Content-Security-Policy|Require-Trusted-Types-For|origin-trial)["']?[^>]*>/gi, '')
+  html = html.replace(
+    /<meta[^>]*http-equiv=["']?(?:Content-Security-Policy|Require-Trusted-Types-For|origin-trial)["']?[^>]*>/gi,
+    ''
+  )
   // Catch alternate attributes ordering (content before http-equiv)
-  html = html.replace(/<meta[^>]*content=["'][^"']*["'][^>]*http-equiv=["']?(?:Content-Security-Policy|Require-Trusted-Types-For|origin-trial)["']?[^>]*>/gi, '')
+  html = html.replace(
+    /<meta[^>]*content=["'][^"']*["'][^>]*http-equiv=["']?(?:Content-Security-Policy|Require-Trusted-Types-For|origin-trial)["']?[^>]*>/gi,
+    ''
+  )
 
   // ── Convert protocol-relative to absolute ──
   const urlAttrs = '(?:src|href|poster|srcset|data-[a-zA-Z0-9-]+)'
@@ -580,7 +601,7 @@ function rewriteHtml(html: string, isWeb3: boolean = false): string {
 
   // Inject as early as possible so player scripts see https: and requests go through relay
   let injector = buildGhostInjector(localRelayPort)
-  
+
   if (isWeb3) {
     // Inject a strict Content-Security-Policy to sandbox Web3 domains and block unauthorized cross-site tracking/execution
     const web3Csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' http://127.0.0.1:* blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://127.0.0.1:*; style-src 'self' 'unsafe-inline' http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:* wss://* https://*; img-src * data: blob:; media-src * data: blob:;">`

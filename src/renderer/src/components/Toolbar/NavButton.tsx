@@ -16,12 +16,7 @@ export default function NavButton({
   className = ''
 }: NavButtonProps) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className={`nav-btn ${className}`}
-    >
+    <button onClick={onClick} disabled={disabled} title={title} className={`nav-btn ${className}`}>
       {children}
     </button>
   )

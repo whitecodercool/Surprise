@@ -16,23 +16,23 @@ export interface GeoResult {
 
 // Maps known CDN/cloud ASNs to friendly names
 const CDN_ASN_MAP: Record<string, string> = {
-  'AS13335': 'Cloudflare',
-  'AS209242': 'Cloudflare',
-  'AS16509': 'Amazon CloudFront',
-  'AS14618': 'Amazon CloudFront',
-  'AS20940': 'Akamai',
-  'AS16625': 'Akamai',
-  'AS54113': 'Fastly',
-  'AS15169': 'Google CDN',
-  'AS396982': 'Google Cloud',
-  'AS8075':  'Microsoft Azure CDN',
-  'AS8068':  'Microsoft Azure CDN',
-  'AS60068': 'CDN77',
-  'AS46489': 'Twitch/Amazon',
-  'AS32934': 'Meta/Facebook',
-  'AS63293': 'Meta/Facebook',
-  'AS2906':  'Netflix',
-  'AS55095': 'StackPath CDN',
+  AS13335: 'Cloudflare',
+  AS209242: 'Cloudflare',
+  AS16509: 'Amazon CloudFront',
+  AS14618: 'Amazon CloudFront',
+  AS20940: 'Akamai',
+  AS16625: 'Akamai',
+  AS54113: 'Fastly',
+  AS15169: 'Google CDN',
+  AS396982: 'Google Cloud',
+  AS8075: 'Microsoft Azure CDN',
+  AS8068: 'Microsoft Azure CDN',
+  AS60068: 'CDN77',
+  AS46489: 'Twitch/Amazon',
+  AS32934: 'Meta/Facebook',
+  AS63293: 'Meta/Facebook',
+  AS2906: 'Netflix',
+  AS55095: 'StackPath CDN'
 }
 
 function asnToCdn(asField: string): string {
@@ -41,7 +41,16 @@ function asnToCdn(asField: string): string {
   return CDN_ASN_MAP[match[1]] || ''
 }
 
-const EMPTY: GeoResult = { ip: '', region: 'Unknown', country: 'Unknown', countryCode: '', city: 'Unknown', isp: 'Unknown', asn: '', cdn: '' }
+const EMPTY: GeoResult = {
+  ip: '',
+  region: 'Unknown',
+  country: 'Unknown',
+  countryCode: '',
+  city: 'Unknown',
+  isp: 'Unknown',
+  asn: '',
+  cdn: ''
+}
 
 export class IpGeolocationService {
   private cityReader: Reader | null = null
@@ -57,14 +66,17 @@ export class IpGeolocationService {
     try {
       const dataPath = path.join(app.getPath('userData'), 'databases')
       const cityDbPath = path.join(dataPath, 'GeoLite2-City.mmdb')
-      const asnDbPath  = path.join(dataPath, 'GeoLite2-ASN.mmdb')
+      const asnDbPath = path.join(dataPath, 'GeoLite2-ASN.mmdb')
 
-      if (fs.existsSync(cityDbPath)) this.cityReader = Reader.openBuffer(fs.readFileSync(cityDbPath))
-      if (fs.existsSync(asnDbPath))  this.asnReader  = Reader.openBuffer(fs.readFileSync(asnDbPath))
+      if (fs.existsSync(cityDbPath))
+        this.cityReader = Reader.openBuffer(fs.readFileSync(cityDbPath))
+      if (fs.existsSync(asnDbPath)) this.asnReader = Reader.openBuffer(fs.readFileSync(asnDbPath))
 
       this.hasLocalDb = !!(this.cityReader || this.asnReader)
       if (!this.hasLocalDb) {
-        console.info('[IpGeolocationService] No local GeoLite2 databases — using ip-api.com fallback.')
+        console.info(
+          '[IpGeolocationService] No local GeoLite2 databases — using ip-api.com fallback.'
+        )
       }
     } catch (e) {
       console.error('[IpGeolocationService] Init failed:', e)
@@ -80,18 +92,18 @@ export class IpGeolocationService {
       if (this.cityReader) {
         // @ts-ignore
         const r = this.cityReader.city(ipAddress)
-        result.region      = r.subdivisions?.[0]?.names?.en || 'Unknown'
-        result.country     = r.country?.names?.en || 'Unknown'
+        result.region = r.subdivisions?.[0]?.names?.en || 'Unknown'
+        result.country = r.country?.names?.en || 'Unknown'
         result.countryCode = r.country?.isoCode || ''
-        result.city        = r.city?.names?.en || 'Unknown'
+        result.city = r.city?.names?.en || 'Unknown'
       }
       if (this.asnReader) {
         // @ts-ignore
         const r = this.asnReader.asn(ipAddress)
-        const asnStr   = r.autonomousSystemNumber ? `AS${r.autonomousSystemNumber}` : ''
-        result.isp     = r.autonomousSystemOrganization || 'Unknown'
-        result.asn     = asnStr
-        result.cdn     = asnToCdn(asnStr + ' ' + (r.autonomousSystemOrganization || ''))
+        const asnStr = r.autonomousSystemNumber ? `AS${r.autonomousSystemNumber}` : ''
+        result.isp = r.autonomousSystemOrganization || 'Unknown'
+        result.asn = asnStr
+        result.cdn = asnToCdn(asnStr + ' ' + (r.autonomousSystemOrganization || ''))
       }
     } catch {}
 
@@ -113,21 +125,23 @@ export class IpGeolocationService {
       let body = ''
 
       req.on('response', (res) => {
-        res.on('data',  (chunk) => { body += chunk.toString() })
-        res.on('end',   () => {
+        res.on('data', (chunk) => {
+          body += chunk.toString()
+        })
+        res.on('end', () => {
           try {
             const j = JSON.parse(body)
             if (j.status === 'success') {
               const asnStr = (j.as || '').split(' ')[0] // e.g. "AS13335"
               const result: GeoResult = {
-                ip:          ipAddress,
-                region:      j.regionName  || 'Unknown',
-                country:     j.country     || 'Unknown',
+                ip: ipAddress,
+                region: j.regionName || 'Unknown',
+                country: j.country || 'Unknown',
                 countryCode: j.countryCode || '',
-                city:        j.city        || 'Unknown',
-                isp:         j.isp         || 'Unknown',
-                asn:         asnStr,
-                cdn:         asnToCdn(j.as || '')
+                city: j.city || 'Unknown',
+                isp: j.isp || 'Unknown',
+                asn: asnStr,
+                cdn: asnToCdn(j.as || '')
               }
               this.remoteCache.set(ipAddress, result)
               resolve(result)
@@ -151,11 +165,15 @@ export class IpGeolocationService {
       const req = net.request('https://api.ipify.org?format=json')
       let body = ''
       req.on('response', (res) => {
-        res.on('data',  (chunk) => { body += chunk.toString() })
-        res.on('end',   () => {
+        res.on('data', (chunk) => {
+          body += chunk.toString()
+        })
+        res.on('end', () => {
           try {
             const { ip } = JSON.parse(body)
-            this.lookupIpFull(ip).then(resolve).catch(() => resolve({ ...EMPTY }))
+            this.lookupIpFull(ip)
+              .then(resolve)
+              .catch(() => resolve({ ...EMPTY }))
           } catch {
             resolve({ ...EMPTY })
           }

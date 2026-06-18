@@ -4,7 +4,6 @@
  * @module FingerprintShield
  */
 
-
 import { UserAgentRotator } from './UserAgentRotator'
 
 export type PrivacyLevel = 'standard' | 'strict' | 'maximum' | 'custom'
@@ -32,13 +31,55 @@ export interface FingerprintTestResult {
 }
 
 const PRESETS: Record<PrivacyLevel, Omit<FingerprintSettings, 'level' | 'timezoneOverride'>> = {
-  standard: { canvasSpoofing: true, webglSpoofing: true, audioSpoofing: false, fontSpoofing: false, screenSpoofing: false, userAgentRotation: true, webrtcProtection: true, batterySpoofing: true, hardwareSpoofing: true, timezoneSpoofing: false },
-  strict: { canvasSpoofing: true, webglSpoofing: true, audioSpoofing: true, fontSpoofing: true, screenSpoofing: true, userAgentRotation: true, webrtcProtection: true, batterySpoofing: true, hardwareSpoofing: true, timezoneSpoofing: false },
-  maximum: { canvasSpoofing: true, webglSpoofing: true, audioSpoofing: true, fontSpoofing: true, screenSpoofing: true, userAgentRotation: true, webrtcProtection: true, batterySpoofing: true, hardwareSpoofing: true, timezoneSpoofing: true },
-  custom: { canvasSpoofing: true, webglSpoofing: true, audioSpoofing: true, fontSpoofing: true, screenSpoofing: true, userAgentRotation: true, webrtcProtection: true, batterySpoofing: true, hardwareSpoofing: true, timezoneSpoofing: false }
+  standard: {
+    canvasSpoofing: true,
+    webglSpoofing: true,
+    audioSpoofing: false,
+    fontSpoofing: false,
+    screenSpoofing: false,
+    userAgentRotation: true,
+    webrtcProtection: true,
+    batterySpoofing: true,
+    hardwareSpoofing: true,
+    timezoneSpoofing: false
+  },
+  strict: {
+    canvasSpoofing: true,
+    webglSpoofing: true,
+    audioSpoofing: true,
+    fontSpoofing: true,
+    screenSpoofing: true,
+    userAgentRotation: true,
+    webrtcProtection: true,
+    batterySpoofing: true,
+    hardwareSpoofing: true,
+    timezoneSpoofing: false
+  },
+  maximum: {
+    canvasSpoofing: true,
+    webglSpoofing: true,
+    audioSpoofing: true,
+    fontSpoofing: true,
+    screenSpoofing: true,
+    userAgentRotation: true,
+    webrtcProtection: true,
+    batterySpoofing: true,
+    hardwareSpoofing: true,
+    timezoneSpoofing: true
+  },
+  custom: {
+    canvasSpoofing: true,
+    webglSpoofing: true,
+    audioSpoofing: true,
+    fontSpoofing: true,
+    screenSpoofing: true,
+    userAgentRotation: true,
+    webrtcProtection: true,
+    batterySpoofing: true,
+    hardwareSpoofing: true,
+    timezoneSpoofing: false
+  }
 }
-
-
 
 export class FingerprintShield {
   private settings: FingerprintSettings
@@ -80,14 +121,21 @@ export class FingerprintShield {
     })();`
   }
 
-  getSettings(): FingerprintSettings { return { ...this.settings } }
+  getSettings(): FingerprintSettings {
+    return { ...this.settings }
+  }
 
   updateSettings(updates: Partial<FingerprintSettings>): void {
     this.settings = { ...this.settings, ...updates }
   }
 
   setLevel(level: PrivacyLevel): void {
-    this.settings = { ...this.settings, level, ...PRESETS[level], timezoneOverride: this.settings.timezoneOverride }
+    this.settings = {
+      ...this.settings,
+      level,
+      ...PRESETS[level],
+      timezoneOverride: this.settings.timezoneOverride
+    }
   }
 
   getUserAgent(): string {
@@ -97,18 +145,24 @@ export class FingerprintShield {
   getTestResults(): FingerprintTestResult {
     const s = this.settings
     const checks = [
-      { name: 'Canvas', on: s.canvasSpoofing }, { name: 'WebGL', on: s.webglSpoofing },
-      { name: 'Audio', on: s.audioSpoofing }, { name: 'Fonts', on: s.fontSpoofing },
-      { name: 'Screen', on: s.screenSpoofing }, { name: 'User Agent', on: s.userAgentRotation },
-      { name: 'WebRTC', on: s.webrtcProtection }, { name: 'Battery', on: s.batterySpoofing },
-      { name: 'Hardware', on: s.hardwareSpoofing }, { name: 'Timezone', on: s.timezoneSpoofing }
+      { name: 'Canvas', on: s.canvasSpoofing },
+      { name: 'WebGL', on: s.webglSpoofing },
+      { name: 'Audio', on: s.audioSpoofing },
+      { name: 'Fonts', on: s.fontSpoofing },
+      { name: 'Screen', on: s.screenSpoofing },
+      { name: 'User Agent', on: s.userAgentRotation },
+      { name: 'WebRTC', on: s.webrtcProtection },
+      { name: 'Battery', on: s.batterySpoofing },
+      { name: 'Hardware', on: s.hardwareSpoofing },
+      { name: 'Timezone', on: s.timezoneSpoofing }
     ]
-    const protectedAPIs = checks.filter(c => c.on).map(c => c.name)
-    const exposedAPIs = checks.filter(c => !c.on).map(c => c.name)
+    const protectedAPIs = checks.filter((c) => c.on).map((c) => c.name)
+    const exposedAPIs = checks.filter((c) => !c.on).map((c) => c.name)
     return {
       uniquenessScore: Math.max(0, 100 - protectedAPIs.length * 10),
-      exposedAPIs, protectedAPIs,
-      recommendations: exposedAPIs.map(a => `Enable ${a} spoofing`)
+      exposedAPIs,
+      protectedAPIs,
+      recommendations: exposedAPIs.map((a) => `Enable ${a} spoofing`)
     }
   }
 }
