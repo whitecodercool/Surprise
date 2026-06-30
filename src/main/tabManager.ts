@@ -76,6 +76,7 @@ export class TabManager {
 
     view.webContents.on('did-navigate', (_event, url) => {
       managedTab.url = url
+      this.positionTabs()
       // Track what URL the user actually navigated to
       if (!url.startsWith('data:') && !url.includes('about:blank')) {
         managedTab.intendedUrl = url
@@ -248,6 +249,7 @@ export class TabManager {
 
     view.webContents.on('did-navigate-in-page', (_event, url) => {
       managedTab.url = url
+      this.positionTabs()
       this.sendToUI('tab:updated', id, {
         url,
         canGoBack: view.webContents.navigationHistory.canGoBack(),
@@ -257,6 +259,7 @@ export class TabManager {
 
     view.webContents.on('did-start-loading', () => {
       this.sendToUI('tab:updated', id, { isLoading: true })
+      this.positionTabs()
 
       // Inject GhostStack Fingerprint Shield
       const spoofScript = this.ghostStack.getFingerprintShield().getSpoofScript()
@@ -496,6 +499,18 @@ export class TabManager {
     const normalizedUrl = this.normalizeUrl(url)
     tab.url = normalizedUrl
     tab.intendedUrl = normalizedUrl
+    this.positionTabs()
+
+    // Shift focus to the web page view immediately
+    try {
+      tab.view.webContents.focus()
+    } catch {}
+
+    // Notify UI immediately that the tab is navigating, which hides the new tab overlay
+    this.sendToUI('tab:updated', id, {
+      url: normalizedUrl,
+      isLoading: true
+    })
 
     if (normalizedUrl === 'ghost://newtab') {
       tab.view.webContents.loadURL('about:blank')
@@ -572,6 +587,13 @@ export class TabManager {
           if (tab.url === 'ghost://newtab' || tab.url === 'about:blank') {
             tab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
           } else {
+            // Ensure the tab view is at the top of window contentView children stack
+            if (
+              this.window.contentView.children.indexOf(tab.view) !==
+              this.window.contentView.children.length - 1
+            ) {
+              this.window.contentView.addChildView(tab.view)
+            }
             tab.view.setBounds({
               x: contentX,
               y: contentY,
@@ -591,6 +613,12 @@ export class TabManager {
           if (primaryTab.url === 'ghost://newtab' || primaryTab.url === 'about:blank') {
             primaryTab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
           } else {
+            if (
+              this.window.contentView.children.indexOf(primaryTab.view) !==
+              this.window.contentView.children.length - 1
+            ) {
+              this.window.contentView.addChildView(primaryTab.view)
+            }
             primaryTab.view.setBounds({
               x: contentX,
               y: contentY,
@@ -603,6 +631,12 @@ export class TabManager {
           if (secondaryTab.url === 'ghost://newtab' || secondaryTab.url === 'about:blank') {
             secondaryTab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
           } else {
+            if (
+              this.window.contentView.children.indexOf(secondaryTab.view) !==
+              this.window.contentView.children.length - 1
+            ) {
+              this.window.contentView.addChildView(secondaryTab.view)
+            }
             secondaryTab.view.setBounds({
               x: contentX + halfWidth + 1,
               y: contentY,
@@ -617,6 +651,12 @@ export class TabManager {
           if (primaryTab.url === 'ghost://newtab' || primaryTab.url === 'about:blank') {
             primaryTab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
           } else {
+            if (
+              this.window.contentView.children.indexOf(primaryTab.view) !==
+              this.window.contentView.children.length - 1
+            ) {
+              this.window.contentView.addChildView(primaryTab.view)
+            }
             primaryTab.view.setBounds({
               x: contentX,
               y: contentY,
@@ -629,6 +669,12 @@ export class TabManager {
           if (secondaryTab.url === 'ghost://newtab' || secondaryTab.url === 'about:blank') {
             secondaryTab.view.setBounds({ x: -9999, y: -9999, width: 0, height: 0 })
           } else {
+            if (
+              this.window.contentView.children.indexOf(secondaryTab.view) !==
+              this.window.contentView.children.length - 1
+            ) {
+              this.window.contentView.addChildView(secondaryTab.view)
+            }
             secondaryTab.view.setBounds({
               x: contentX,
               y: contentY + halfHeight + 1,

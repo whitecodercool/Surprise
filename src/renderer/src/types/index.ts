@@ -218,4 +218,5 @@ export interface GhostAPI {
   showKebabMenu: (currentTheme: string) => void
   onMenuAction: (callback: (action: string) => void) => void
   onThemeChange: (callback: (theme: 'light' | 'dark' | 'system') => void) => void
+  getGhostId: () => Promise<string>
 }

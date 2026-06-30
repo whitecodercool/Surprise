@@ -1,5 +1,98 @@
 import { useState, useRef, useEffect } from 'react'
 import { useBrowser } from '../../context/BrowserContext'
+import cyberEyeImg from '../../assets/cyber_eye.jpg'
+
+// ── Pixel-art style minimal shortcut icons ──
+function PixelIcon({ name, color }: { name: string; color: string }) {
+  const p = 2 // pixel size
+  const icons: Record<string, [number, number][]> = {
+    google: [
+      // "G" shape in pixel grid
+      [3,0],[4,0],[5,0],[6,0],
+      [2,1],[1,2],[1,3],[1,4],[1,5],
+      [2,6],[3,7],[4,7],[5,7],[6,7],
+      [7,6],[7,5],[7,4],
+      [5,4],[6,4],
+    ],
+    youtube: [
+      // Play triangle
+      [3,1],[3,2],[3,3],[3,4],[3,5],[3,6],
+      [4,2],[4,3],[4,4],[4,5],
+      [5,3],[5,4],
+      [6,3],[6,4],
+      [7,4],
+    ],
+    github: [
+      // Octocat face simplified
+      [3,0],[4,0],[5,0],[6,0],
+      [2,1],[7,1],
+      [1,2],[3,2],[5,2],[8,2],
+      [1,3],[8,3],
+      [2,4],[3,4],[4,4],[5,4],[6,4],[7,4],
+      [3,5],[6,5],
+      [2,6],[3,6],[6,6],[7,6],
+    ],
+    reddit: [
+      // Snoo face
+      [3,0],[4,0],[5,0],[6,0],
+      [2,1],[7,1],
+      [2,2],[3,2],[5,2],[6,2],[7,2],
+      [2,3],[7,3],
+      [3,4],[4,4],[5,4],[6,4],
+      [2,5],[7,5],
+      [3,6],[4,6],[5,6],[6,6],
+      [4,-1],[5,-1], // antenna
+    ],
+    x: [
+      // X / cross
+      [1,1],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],
+      [7,1],[6,2],[5,3],[3,5],[2,6],[1,7],
+    ],
+  }
+
+  const pixels = icons[name.toLowerCase()]
+
+  if (!pixels) {
+    // Fallback: render first letter
+    return (
+      <span style={{ color, fontWeight: 700, fontSize: 20, fontFamily: "'SF Mono', monospace" }}>
+        {name.charAt(0).toUpperCase()}
+      </span>
+    )
+  }
+
+  return (
+    <svg width={p * 10} height={p * 9} viewBox={`0 0 ${p * 10} ${p * 9}`}>
+      {pixels.map(([x, y], i) => (
+        <rect
+          key={i}
+          x={x * p}
+          y={(y + 1) * p}
+          width={p}
+          height={p}
+          fill={color}
+          rx={0.3}
+        />
+      ))}
+    </svg>
+  )
+}
+
+// GHOST PROJECTS logo for landing page
+function GhostProjectsLogo() {
+  return (
+    <svg width="26" height="16" viewBox="0 0 28 18" fill="none">
+      <path
+        d="M1 9s5-7 13-7 13 7 13 7-5 7-13 7S1 9 1 9z"
+        stroke="var(--color-text-primary)"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="14" cy="9" r="4.2" fill="var(--color-text-primary)" />
+    </svg>
+  )
+}
 
 const getShortcutColor = (url: string): string => {
   try {
@@ -40,132 +133,6 @@ const getShortcutIcon = (title: string, url: string): string => {
   }
 }
 
-// Futuristic ghost eye SVG
-function GhostEye() {
-  return (
-    <div className="ghost-eye-container" style={{ width: 220, height: 200, position: 'relative' }}>
-      <svg width="220" height="200" viewBox="0 0 220 200" fill="none">
-        {/* Outer mechanical frame - top arc */}
-        <path
-          d="M30 100 C30 45, 190 45, 190 100"
-          stroke="rgba(255,255,255,0.08)"
-          strokeWidth="1.5"
-          fill="none"
-        />
-        {/* Outer mechanical frame - bottom arc */}
-        <path
-          d="M30 100 C30 155, 190 155, 190 100"
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth="1.5"
-          fill="none"
-        />
-
-        {/* Inner eye shape - top lid */}
-        <path
-          d="M50 100 C50 60, 170 60, 170 100"
-          stroke="rgba(255,255,255,0.12)"
-          strokeWidth="2"
-          fill="none"
-        />
-        {/* Inner eye shape - bottom lid */}
-        <path
-          d="M50 100 C50 140, 170 140, 170 100"
-          stroke="rgba(255,255,255,0.08)"
-          strokeWidth="2"
-          fill="none"
-        />
-
-        {/* Dark eye fill */}
-        <ellipse cx="110" cy="100" rx="55" ry="38" fill="rgba(10,5,5,0.9)" />
-        <ellipse
-          cx="110"
-          cy="100"
-          rx="55"
-          ry="38"
-          stroke="rgba(230,57,70,0.15)"
-          strokeWidth="1"
-          fill="none"
-        />
-
-        {/* Iris rings */}
-        <circle cx="110" cy="100" r="30" stroke="rgba(230,57,70,0.2)" strokeWidth="1" fill="none" />
-        <circle
-          cx="110"
-          cy="100"
-          r="24"
-          stroke="rgba(230,57,70,0.15)"
-          strokeWidth="0.5"
-          fill="none"
-        />
-        <circle
-          cx="110"
-          cy="100"
-          r="36"
-          stroke="rgba(230,57,70,0.1)"
-          strokeWidth="0.5"
-          fill="none"
-        />
-
-        {/* Pupil - red glow */}
-        <circle cx="110" cy="100" r="16" fill="rgba(230,57,70,0.3)" />
-        <circle className="ghost-eye-pupil" cx="110" cy="100" r="10" fill="rgba(230,57,70,0.7)" />
-        <circle cx="110" cy="100" r="5" fill="rgba(230,57,70,1)" />
-        <circle cx="110" cy="100" r="2.5" fill="rgba(180,20,30,1)" />
-
-        {/* Pupil glow effect */}
-        <circle
-          cx="110"
-          cy="100"
-          r="14"
-          fill="none"
-          stroke="rgba(230,57,70,0.4)"
-          strokeWidth="0.5"
-        />
-        <circle cx="110" cy="100" r="20" fill="none" filter="url(#eyeGlow)" />
-
-        {/* Highlight */}
-        <circle cx="116" cy="94" r="2" fill="rgba(255,255,255,0.15)" />
-
-        {/* Mechanical detail lines */}
-        <line x1="110" y1="42" x2="110" y2="52" stroke="rgba(230,57,70,0.3)" strokeWidth="1" />
-        <line x1="110" y1="148" x2="110" y2="158" stroke="rgba(230,57,70,0.15)" strokeWidth="1" />
-
-        {/* Corner details */}
-        <path
-          d="M35 95 L25 100 L35 105"
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth="1"
-          fill="none"
-        />
-        <path
-          d="M185 95 L195 100 L185 105"
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth="1"
-          fill="none"
-        />
-
-        {/* Radial scan lines */}
-        <line x1="60" y1="70" x2="68" y2="78" stroke="rgba(230,57,70,0.08)" strokeWidth="0.5" />
-        <line x1="160" y1="70" x2="152" y2="78" stroke="rgba(230,57,70,0.08)" strokeWidth="0.5" />
-        <line x1="60" y1="130" x2="68" y2="122" stroke="rgba(230,57,70,0.08)" strokeWidth="0.5" />
-        <line x1="160" y1="130" x2="152" y2="122" stroke="rgba(230,57,70,0.08)" strokeWidth="0.5" />
-
-        <defs>
-          <filter id="eyeGlow">
-            <feGaussianBlur stdDeviation="6" result="blur" />
-            <feFlood floodColor="#e63946" floodOpacity="0.4" />
-            <feComposite in2="blur" operator="in" />
-            <feMerge>
-              <feMergeNode />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-      </svg>
-    </div>
-  )
-}
-
 // Ghost mini icon for footer
 function GhostMiniIcon() {
   return (
@@ -185,6 +152,11 @@ export default function TabArea() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [newShortcutName, setNewShortcutName] = useState('')
   const [newShortcutUrl, setNewShortcutUrl] = useState('')
+  const [ghostId, setGhostId] = useState('')
+
+  useEffect(() => {
+    window.api?.getGhostId().then((id) => setGhostId(id)).catch(console.error)
+  }, [])
 
   useEffect(() => {
     const handleTrigger = () => {
@@ -231,6 +203,9 @@ export default function TabArea() {
     const query = searchValue.trim()
     if (!query) return
 
+    // Blur the input to release focus
+    searchRef.current?.blur()
+
     // If it looks like a URL, navigate directly
     if (/^[^\s]+\.[^\s]+$/.test(query) || query.startsWith('http')) {
       const url = query.startsWith('http') ? query : `https://${query}`
@@ -258,19 +233,71 @@ export default function TabArea() {
     activeTab.url === 'about:blank' ||
     activeTab.url === ''
 
+  const isLightTheme = state.uiSettings?.theme === 'light' ||
+    (state.uiSettings?.theme === 'system' && window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches)
+
   if (hasTabs && !isNewTab) {
     return <div className="flex-1" style={{ background: 'transparent' }} />
   }
 
   return (
     <div
-      className="flex-1 flex items-center justify-center animate-fade-in"
+      className="flex-1 flex items-center justify-center animate-fade-in relative"
       style={{ background: 'var(--color-bg-primary)' }}
     >
+      {/* Top Left Logo (GHOST PROJECTS) */}
+      <div className="absolute top-6 left-8 flex items-center gap-2.5 select-none opacity-80 hover:opacity-100 transition-opacity duration-200">
+        <GhostProjectsLogo />
+        <div className="flex flex-col">
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              color: 'var(--color-text-primary)',
+              letterSpacing: '0.12em',
+              lineHeight: 1
+            }}
+          >
+            GHOST
+          </span>
+          <span
+            style={{
+              fontSize: 8.5,
+              fontWeight: 600,
+              color: 'var(--color-text-muted)',
+              letterSpacing: '0.08em',
+              lineHeight: 1,
+              marginTop: 1
+            }}
+          >
+            PROJECTS
+          </span>
+        </div>
+      </div>
       <div className="flex flex-col items-center gap-8" style={{ maxWidth: 560 }}>
         {/* Ghost Eye Logo */}
-        <div className="animate-float">
-          <GhostEye />
+        <div
+          style={{
+            width: 440,
+            height: 275,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          {/* Cybernetic Eye Image */}
+          <img
+            src={cyberEyeImg}
+            alt="Ghost Cyber Eye"
+            style={{
+              width: '100%',
+              height: 'auto',
+              mixBlendMode: isLightTheme ? 'multiply' : 'screen', // Blends black/white background perfectly
+              filter: isLightTheme ? 'invert(1) hue-rotate(180deg) contrast(1.15) brightness(1.02)' : 'none',
+              userSelect: 'none',
+              opacity: isLightTheme ? 0.65 : 0.35 // Crisp visibility in light theme, subtle watermark in dark theme
+            }}
+          />
         </div>
 
         {/* Search Bar */}
@@ -352,14 +379,11 @@ export default function TabArea() {
               onClick={() => setShowAddModal(true)}
               style={{ borderColor: 'var(--color-accent-muted)' }}
             >
-              <span className="shortcut-icon" style={{ color: 'var(--color-accent)' }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 6v12M6 12h12"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
+              <span className="shortcut-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  {/* Pixel-art plus */}
+                  <rect x="8" y="2" width="2" height="14" fill="var(--color-accent)" rx="0.3" />
+                  <rect x="2" y="8" width="14" height="2" fill="var(--color-accent)" rx="0.3" />
                 </svg>
               </span>
               <span className="shortcut-label">Add Shortcut</span>
@@ -378,8 +402,8 @@ export default function TabArea() {
                 >
                   ✕
                 </button>
-                <span className="shortcut-icon" style={{ color: link.color, fontWeight: 700 }}>
-                  {link.icon}
+                <span className="shortcut-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <PixelIcon name={link.icon} color={link.color} />
                 </span>
                 <span className="shortcut-label">{link.name}</span>
               </div>
@@ -422,7 +446,7 @@ export default function TabArea() {
               textTransform: 'uppercase'
             }}
           >
-            Futuristic
+            Secure
           </span>
         </div>
 
@@ -478,6 +502,52 @@ export default function TabArea() {
           </form>
         </div>
       )}
+      {/* Bottom Left Ghost ID Box */}
+      <div
+        className="absolute bottom-6 left-8 select-none flex items-center gap-2 px-3 py-1.5 rounded-md"
+        style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid rgba(255, 255, 255, 0.04)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)'
+        }}
+      >
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 800,
+            color: 'var(--color-accent)',
+            letterSpacing: '0.08em'
+          }}
+        >
+          GHOST ID:
+        </span>
+        <span
+          style={{
+            fontFamily: "'SF Mono', monospace",
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: 'var(--color-text-muted)',
+            letterSpacing: '0.04em'
+          }}
+        >
+          {ghostId || 'GENERATING...'}
+        </span>
+      </div>
+
+      {/* Bottom Right Version Tag */}
+      <div
+        className="absolute bottom-6 right-8 select-none"
+        style={{
+          fontSize: 10.5,
+          fontWeight: 500,
+          color: 'var(--color-text-muted)',
+          letterSpacing: '0.06em',
+          opacity: 0.4
+        }}
+      >
+        Ghost Browser v1.1.0
+      </div>
     </div>
   )
 }

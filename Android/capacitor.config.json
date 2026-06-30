@@ -1,0 +1,5 @@
+{
+  "appId": "com.ghostprojects.browser",
+  "appName": "Ghost Browser",
+  "webDir": "dist"
+}

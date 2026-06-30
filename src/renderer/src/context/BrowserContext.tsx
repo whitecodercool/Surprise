@@ -11,11 +11,11 @@ import type { BrowserState, BrowserAction, Tab, ClosedTab, SettingsTab, Shortcut
 const MAX_RECENTLY_CLOSED = 10
 
 const defaultShortcuts: Shortcut[] = [
-  { name: 'Google', url: 'https://www.google.com', icon: 'G', color: '#4285f4' },
-  { name: 'YouTube', url: 'https://www.youtube.com', icon: '▶', color: '#ff0000' },
-  { name: 'GitHub', url: 'https://github.com', icon: '⬡', color: '#f0f0f0' },
-  { name: 'Reddit', url: 'https://www.reddit.com', icon: '☻', color: '#ff4500' },
-  { name: 'X', url: 'https://x.com', icon: '𝕏', color: '#f0f0f0' }
+  { name: 'Google', url: 'https://www.google.com', icon: 'google', color: '#4285f4' },
+  { name: 'YouTube', url: 'https://www.youtube.com', icon: 'youtube', color: '#ff0000' },
+  { name: 'GitHub', url: 'https://github.com', icon: 'github', color: '#f0f0f0' },
+  { name: 'Reddit', url: 'https://www.reddit.com', icon: 'reddit', color: '#ff4500' },
+  { name: 'X', url: 'https://x.com', icon: 'x', color: '#f0f0f0' }
 ]
 
 const getInitialShortcuts = (): Shortcut[] => {
@@ -346,15 +346,16 @@ export function BrowserProvider({ children }: { children: ReactNode }) {
   const navigateTo = useCallback(
     (url: string) => {
       if (state.activeTabId) {
+        dispatch({
+          type: 'UPDATE_TAB',
+          payload: { id: state.activeTabId, updates: { url, isLoading: true } }
+        })
         window.api?.navigateTo(state.activeTabId, url)
       } else {
-        // No active tab — create one with the URL
-        window.api?.createTab(url)
-        // Sidebar removed — always 0
-        window.api?.updateSidebarWidth(0)
+        createNewTab(url)
       }
     },
-    [state.activeTabId, state.sidebarCollapsed]
+    [state.activeTabId, createNewTab]
   )
   const goBack = useCallback(() => {
     if (state.activeTabId) window.api?.goBack(state.activeTabId)

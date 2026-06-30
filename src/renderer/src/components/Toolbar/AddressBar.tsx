@@ -31,6 +31,16 @@ export default function AddressBar() {
     }
   }, [displayUrl, isFocused])
 
+  // Auto-focus input when a new tab is opened or switched to
+  useEffect(() => {
+    if (activeTab && (activeTab.url === 'ghost://newtab' || activeTab.url === 'about:blank' || !activeTab.url)) {
+      setTimeout(() => {
+        inputRef.current?.focus()
+        inputRef.current?.select()
+      }, 50)
+    }
+  }, [state.activeTabId, activeTab?.url])
+
   const handleFocus = (): void => {
     setIsFocused(true)
     setDropdownOpen(true)
@@ -77,7 +87,8 @@ export default function AddressBar() {
       const url = new URL(displayUrl)
       const host = url.hostname.replace(/^www\./, '')
       const path = url.pathname !== '/' ? url.pathname : ''
-      return host + path
+      const search = url.search || ''
+      return host + path + search
     } catch {
       return displayUrl
     }

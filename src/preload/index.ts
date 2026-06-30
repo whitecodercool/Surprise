@@ -45,6 +45,7 @@ const api = {
 
   // Performance
   getStartupMetrics: (): Promise<number> => ipcRenderer.invoke('app:get-startup-metrics'),
+  getGhostId: (): Promise<string> => ipcRenderer.invoke('app:get-ghost-id'),
   onMemoryMetrics: (callback: (_memory: unknown) => void): void => {
     ipcRenderer.removeAllListeners('app:memory-metrics')
     ipcRenderer.on('app:memory-metrics', (_event, memory) => callback(memory))
@@ -117,7 +118,26 @@ const api = {
   onThemeChange: (callback: (theme: string) => void): void => {
     ipcRenderer.removeAllListeners('menu:theme-change')
     ipcRenderer.on('menu:theme-change', (_event, theme) => callback(theme))
-  }
+  },
+
+  // Auto Updater
+  onUpdaterAvailable: (callback: (info: any) => void): void => {
+    ipcRenderer.removeAllListeners('updater:available')
+    ipcRenderer.on('updater:available', (_event, info) => callback(info))
+  },
+  onUpdaterProgress: (callback: (data: any) => void): void => {
+    ipcRenderer.removeAllListeners('updater:progress')
+    ipcRenderer.on('updater:progress', (_event, data) => callback(data))
+  },
+  onUpdaterDownloaded: (callback: () => void): void => {
+    ipcRenderer.removeAllListeners('updater:downloaded')
+    ipcRenderer.on('updater:downloaded', () => callback())
+  },
+  onUpdaterError: (callback: (err: string) => void): void => {
+    ipcRenderer.removeAllListeners('updater:error')
+    ipcRenderer.on('updater:error', (_event, err) => callback(err))
+  },
+  checkUpdates: (): void => ipcRenderer.send('updater:check')
 }
 
 if (process.contextIsolated) {

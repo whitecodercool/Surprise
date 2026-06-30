@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ghost Browser</string>
+    <string name="title_activity_main">Ghost Browser</string>
+    <string name="package_name">com.ghostprojects.browser</string>
+    <string name="custom_url_scheme">com.ghostprojects.browser</string>
+</resources>

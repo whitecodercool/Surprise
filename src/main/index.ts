@@ -9,6 +9,7 @@ import { GhostStackOrchestrator } from '../ghoststack/core/GhostStackOrchestrato
 import { initLogger, closeLogger, getLogFilePath } from '../ghoststack/core/Logger'
 import { torService } from './services/TorService'
 import { darkRoomProxy, resolveOnionAddr } from './services/DarkRoomProxy'
+import { AppUpdater } from './autoUpdater'
 
 // ─── GhostStack Chromium Flags ───
 // Encrypt DNS queries
@@ -169,6 +170,12 @@ export function createWindow(initialUrl?: string): void {
     if (initialUrl) {
       tabMgr.createTab(initialUrl)
     }
+
+    // Initialize and check for updates
+    const updater = new AppUpdater(view.webContents)
+    setTimeout(() => {
+      updater.checkForUpdates()
+    }, 2000)
   })
 
   // Load the React UI
@@ -338,6 +345,27 @@ function registerIpcHandlers(): void {
 
   // Performance
   ipcMain.handle('app:get-startup-metrics', () => startupTimeMs)
+  ipcMain.handle('app:get-ghost-id', () => {
+    const fs = require('fs')
+    const ghostIdPath = join(app.getPath('userData'), 'ghost-id.txt')
+    if (fs.existsSync(ghostIdPath)) {
+      try {
+        return fs.readFileSync(ghostIdPath, 'utf8').trim()
+      } catch (e) {
+        console.error('Failed to read ghost-id.txt', e)
+      }
+    }
+    // Generate new random Ghost ID: GHOST-XXXX-XXXX-XXXX
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    const genGroup = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+    const newId = `GHOST-${genGroup()}-${genGroup()}-${genGroup()}`
+    try {
+      fs.writeFileSync(ghostIdPath, newId, 'utf8')
+    } catch (e) {
+      console.error('Failed to write ghost-id.txt', e)
+    }
+    return newId
+  })
 
   // Logs
   ipcMain.handle('app:get-log-path', () => getLogFilePath())

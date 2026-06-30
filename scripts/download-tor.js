@@ -238,6 +238,28 @@ async function main() {
   console.log(`Bundle:   ${BUNDLE_NAME}`)
   console.log(`Output:   resources/tor/\n`)
 
+  const metadataPath = path.join(OUT_DIR, '.metadata.json')
+  let currentMetadata = null
+  try {
+    if (fs.existsSync(metadataPath)) {
+      currentMetadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
+    }
+  } catch (e) {}
+
+  const targetMetadata = { platform: PLATFORM, arch: ARCH, version: TOR_VERSION }
+
+  if (
+    !currentMetadata ||
+    currentMetadata.platform !== PLATFORM ||
+    currentMetadata.arch !== ARCH ||
+    currentMetadata.version !== TOR_VERSION
+  ) {
+    console.log(`Target metadata mismatch or missing (Current: ${JSON.stringify(currentMetadata)}, Target: ${JSON.stringify(targetMetadata)}). Cleaning resources/tor/...`)
+    try {
+      fs.rmSync(OUT_DIR, { recursive: true, force: true })
+    } catch (e) {}
+  }
+
   const torBin = path.join(OUT_DIR, TOR_BINARY)
   if (fs.existsSync(torBin)) {
     console.log(`${TOR_BINARY} already exists in resources/tor/ — nothing to do.`)
@@ -269,6 +291,7 @@ async function main() {
     process.exit(1)
   }
 
+  fs.writeFileSync(metadataPath, JSON.stringify(targetMetadata, null, 2))
   console.log(`\nDone.\n`)
 }
 

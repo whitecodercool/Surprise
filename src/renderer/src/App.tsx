@@ -8,6 +8,7 @@ import CommandPalette from './components/CommandPalette/CommandPalette'
 import SplashScreen from './components/SplashScreen/SplashScreen'
 import SettingsPage from './components/Settings/SettingsPage'
 import DarkRoomPanel from './components/DarkRoom/DarkRoomPanel'
+import UpdaterOverlay from './components/UpdaterOverlay/UpdaterOverlay'
 
 const getShortcutColor = (url: string): string => {
   try {
@@ -166,6 +167,9 @@ function BrowserShell() {
       {state.darkRoomOpen && (
         <DarkRoomPanel onClose={() => dispatch({ type: 'TOGGLE_DARK_ROOM' })} />
       )}
+
+      {/* Auto Updater Mandatory Overlay */}
+      <UpdaterOverlay />
     </div>
   )
 }

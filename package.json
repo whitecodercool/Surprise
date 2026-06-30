@@ -17,14 +17,15 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "download-tor": "node scripts/download-tor.js",
-    "build:win": "npm run download-tor && npm run build && electron-builder --win",
-    "build:mac": "npm run download-tor && npm run build && electron-builder --mac",
-    "build:linux": "npm run download-tor && npm run build && electron-builder --linux"
+    "build:win": "cross-env TARGET_PLATFORM=win32 TARGET_ARCH=x64 npm run download-tor && npm run build && electron-builder --win",
+    "build:mac": "cross-env TARGET_PLATFORM=darwin npm run download-tor && npm run build && electron-builder --mac",
+    "build:linux": "cross-env TARGET_PLATFORM=linux TARGET_ARCH=x64 npm run download-tor && npm run build && electron-builder --linux deb --x64"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@maxmind/geoip2-node": "^6.3.4",
+    "electron-updater": "^6.8.9",
     "ethers": "^6.16.0",
     "framer-motion": "^12.40.0",
     "node-forge": "^1.4.0",
@@ -41,6 +42,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.1",
+    "cross-env": "^10.1.0",
     "electron": "^39.8.10",
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
