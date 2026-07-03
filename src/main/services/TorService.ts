@@ -89,9 +89,23 @@ class TorService {
     const dataDir = path.join(app.getPath('userData'), 'tor-data')
     fs.mkdirSync(dataDir, { recursive: true })
 
+    const pidFile = path.join(dataDir, 'tor.pid')
+    try {
+      if (fs.existsSync(pidFile)) {
+        const oldPid = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10)
+        if (oldPid > 0) {
+          process.kill(oldPid, 9) // forcefully kill orphaned tor process
+        }
+      }
+    } catch (e) {
+      // process might already be dead, or we don't have permissions
+    }
+
     const torrc = [
       `SocksPort 127.0.0.1:${this._socksPort}`,
       `DataDirectory ${dataDir}`,
+      `PidFile ${pidFile}`,
+      `__OwningControllerProcess ${process.pid}`,
       'Log notice stdout',
       'ExitPolicy reject *:*',
       'ExitRelay 0',
@@ -107,14 +121,24 @@ class TorService {
       stdio: ['ignore', 'pipe', 'pipe']
     })
 
+    let lastLogs: string[] = []
+    const logOutput = (chunk: Buffer) => {
+      const line = chunk.toString().trim()
+      if (line) {
+        lastLogs.push(line)
+        if (lastLogs.length > 10) lastLogs.shift()
+      }
+    }
+
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.proc?.kill()
         this._setStatus('error')
-        reject(new Error('Tor bootstrap timed out'))
+        reject(new Error(`Tor bootstrap timed out.\nLast logs:\n${lastLogs.join('\n')}`))
       }, 120_000)
 
       this.proc!.stdout?.on('data', (chunk: Buffer) => {
+        logOutput(chunk)
         const line = chunk.toString()
         const m = line.match(/Bootstrapped (\d+)%/)
         if (m) {
@@ -128,11 +152,13 @@ class TorService {
         }
       })
 
+      this.proc!.stderr?.on('data', logOutput)
+
       this.proc!.on('exit', (code) => {
         if (this._status !== 'ready') {
           clearTimeout(timeout)
           this._setStatus('error')
-          reject(new Error(`Tor exited (${code})`))
+          reject(new Error(`Tor exited (${code}).\nLast logs:\n${lastLogs.join('\n')}`))
         } else {
           this._setStatus('stopped')
         }
