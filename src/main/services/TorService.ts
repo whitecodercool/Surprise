@@ -36,7 +36,13 @@ class TorService {
       candidates.push(path.join(process.resourcesPath, 'tor', binName))
     }
 
-    // Dev / fallback paths per platform
+    // Priority 1: Dev fallback (binary downloaded by npm run download-tor)
+    candidates.push(
+      path.join(app.getAppPath(), '..', 'resources', 'tor', binName),
+      path.join(process.cwd(), 'resources', 'tor', binName)
+    )
+
+    // Priority 2: System-wide fallback paths
     if (isWin) {
       const localAppData = process.env.LOCALAPPDATA || ''
       const appData = process.env.APPDATA || ''
@@ -55,12 +61,6 @@ class TorService {
       // Linux
       candidates.push('/usr/bin/tor', '/usr/local/bin/tor', '/snap/bin/tor')
     }
-
-    // Dev fallback: binary placed next to app source
-    candidates.push(
-      path.join(app.getAppPath(), '..', 'resources', 'tor', binName),
-      path.join(process.cwd(), 'resources', 'tor', binName)
-    )
 
     for (const c of candidates) {
       if (c && fs.existsSync(c)) return c
