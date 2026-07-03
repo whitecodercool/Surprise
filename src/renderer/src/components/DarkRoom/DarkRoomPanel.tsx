@@ -297,9 +297,8 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
 
       case 'system':
         addSystem(msg.msg)
-        if (typeof msg.users === 'number') {
-          // user count update — server doesn't send full list on join/leave,
-          // just reflect the delta in the count
+        if (Array.isArray(msg.participants)) {
+          setParticipants(msg.participants)
         }
         break
 
@@ -328,14 +327,14 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
     setMessages((prev) => [
       ...prev,
       {
-        handle: myHandle,
+        handle: myHandleRef.current,
         text,
         ts: Date.now(),
         own: true
       }
     ])
     setMsgText('')
-  }, [msgText, myHandle])
+  }, [msgText])
 
   // ── Panic / leave ─────────────────────────────────────────────────────────
   const panic = useCallback(() => {
@@ -380,8 +379,8 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div style={S.overlay}>
-      <div style={S.panel}>
+    <div style={S.overlay} onClick={onClose}>
+      <div className="no-drag" style={S.panel} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={S.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -389,7 +388,7 @@ export default function DarkRoomPanel({ onClose }: DarkRoomPanelProps) {
             <span style={S.headerTitle}>GHOST DARK ROOM</span>
             <span style={S.headerBadge}>E2E ENCRYPTED · EPHEMERAL</span>
           </div>
-          <button onClick={onClose} style={S.closeBtn} title="Close">
+          <button className="no-drag" onClick={onClose} style={S.closeBtn} title="Close">
             ✕
           </button>
         </div>
@@ -663,7 +662,8 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'stretch',
     justifyContent: 'flex-end',
-    pointerEvents: 'none'
+    pointerEvents: 'auto',
+    background: 'rgba(0,0,0,0.4)' // Add a slight dim to the rest of the app
   },
   panel: {
     width: 680,

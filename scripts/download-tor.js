@@ -7,7 +7,7 @@ const crypto = require('crypto')
 const zlib = require('zlib')
 const { execSync } = require('child_process')
 
-const TOR_VERSION = '15.0.16'
+const TOR_VERSION = '15.0.17'
 
 // ── Platform detection ────────────────────────────────────────────────────────
 const PLATFORM = process.env.TARGET_PLATFORM || process.platform // win32 | linux | darwin

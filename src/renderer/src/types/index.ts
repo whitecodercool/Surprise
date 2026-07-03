@@ -211,7 +211,6 @@ export interface GhostAPI {
   ghoststackDNSLeakTest: () => Promise<any>
   // Dark Room
   darkroomGetConfig: () => Promise<{ onionAddr: string; torStatus: string; torFound: boolean }>
-  darkroomSetOnionAddr: (addr: string) => Promise<boolean>
   darkroomStart: () => Promise<{ ok: boolean; port?: number; error?: string }>
   darkroomStop: () => Promise<boolean>
   onDarkroomTorStatus: (cb: (data: { status: string; progress: number | null }) => void) => void

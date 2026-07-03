@@ -138,11 +138,6 @@ function BrowserShell() {
     return <SplashScreen onFinished={handleSplashFinished} />
   }
 
-  // DEBUG
-  if (typeof window !== 'undefined') {
-    console.log('window.api:', (window as any).api)
-  }
-
   return (
     <div
       className="flex flex-col h-full w-full animate-fade-in"

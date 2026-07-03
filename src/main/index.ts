@@ -495,6 +495,9 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   // Clean up GhostStack — wipe all session data
   ghostStack?.destroy()
+  // Stop Tor and DarkRoom proxy to prevent orphaned processes
+  darkRoomProxy.stop()
+  torService.stop()
   if (process.platform !== 'darwin') {
     closeLogger()
     app.quit()

@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ghost Stack Proxy — Technical Architecture Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ─── Reset & Base ─── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0b0d11;
+      --surface: #12151c;
+      --surface-2: #181c26;
+      --border: #1f2533;
+      --border-accent: #2a3148;
+      --text: #e2e6f0;
+      --text-muted: #8b93a7;
+      --text-dim: #5c6478;
+      --accent: #7c6aef;
+      --accent-light: #a78bfa;
+      --accent-glow: rgba(124, 106, 239, 0.15);
+      --green: #34d399;
+      --green-dim: rgba(52, 211, 153, 0.12);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.12);
+      --orange: #fb923c;
+      --orange-dim: rgba(251, 146, 60, 0.12);
+      --blue: #60a5fa;
+      --blue-dim: rgba(96, 165, 250, 0.12);
+      --cyan: #22d3ee;
+      --yellow: #fbbf24;
+    }
+
+    html {
+      font-size: 15px;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ─── Print Styles ─── */
+    @media print {
+      :root {
+        --bg: #ffffff;
+        --surface: #f8f9fa;
+        --surface-2: #f0f1f3;
+        --border: #dee2e6;
+        --border-accent: #ced4da;
+        --text: #1a1a2e;
+        --text-muted: #495057;
+        --text-dim: #6c757d;
+        --accent: #5b4dc7;
+        --accent-light: #7c6aef;
+        --accent-glow: rgba(91, 77, 199, 0.08);
+        --green: #0d9668;
+        --green-dim: rgba(13, 150, 104, 0.08);
+        --red: #dc2626;
+        --red-dim: rgba(220, 38, 38, 0.08);
+        --orange: #d97706;
+        --orange-dim: rgba(217, 119, 6, 0.08);
+        --blue: #2563eb;
+        --blue-dim: rgba(37, 99, 235, 0.08);
+        --cyan: #0891b2;
+        --yellow: #ca8a04;
+      }
+      body { font-size: 11pt; }
+      .page-wrapper { max-width: 100%; padding: 0; }
+      .hero { padding: 40px 0 30px; }
+      .hero::before { display: none; }
+      section { break-inside: avoid; page-break-inside: avoid; }
+      .flow-step { break-inside: avoid; }
+      .print-btn { display: none !important; }
+      .toc { break-after: page; }
+      h2 { page-break-after: avoid; }
+    }
+
+    /* ─── Layout ─── */
+    .page-wrapper {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 32px 80px;
+    }
+
+    /* ─── Print Button ─── */
+    .print-btn {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      background: linear-gradient(135deg, var(--accent), #9b5de5);
+      color: #fff;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(124, 106, 239, 0.35);
+      transition: all 0.3s ease;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .print-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(124, 106, 239, 0.5);
+    }
+    .print-btn svg { width: 18px; height: 18px; }
+
+    /* ─── Hero ─── */
+    .hero {
+      text-align: center;
+      padding: 80px 0 60px;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-icon {
+      width: 80px; height: 80px;
+      margin: 0 auto 24px;
+      background: linear-gradient(135deg, var(--accent), #9b5de5);
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      box-shadow: 0 8px 32px rgba(124, 106, 239, 0.3);
+    }
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #fff 30%, var(--accent-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .hero .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      max-width: 560px;
+      margin: 0 auto 24px;
+    }
+    .hero .meta {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      font-size: 0.82rem;
+      color: var(--text-dim);
+    }
+    .hero .meta span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ─── Table of Contents ─── */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 48px;
+    }
+    .toc h3 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+    .toc ol {
+      list-style: none;
+      counter-reset: toc;
+      columns: 2;
+      column-gap: 32px;
+    }
+    .toc li {
+      counter-increment: toc;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      break-inside: avoid;
+    }
+    .toc li:last-child { border-bottom: none; }
+    .toc li::before {
+      content: counter(toc, decimal-leading-zero);
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.82rem;
+      margin-right: 10px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .toc a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.92rem;
+      transition: color 0.2s;
+    }
+    .toc a:hover { color: var(--accent-light); }
+
+    /* ─── Sections ─── */
+    section {
+      margin-bottom: 56px;
+    }
+
+    h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    h2 .icon {
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .section-file {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+      padding-left: 54px;
+    }
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 28px 0 12px;
+      color: var(--text);
+    }
+    p {
+      margin-bottom: 16px;
+      color: var(--text-muted);
+    }
+    p strong { color: var(--text); font-weight: 600; }
+
+    /* ─── Cards ─── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .card-header .badge {
+      font-size: 20px;
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .card-header h4 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .card p {
+      font-size: 0.92rem;
+      line-height: 1.65;
+    }
+
+    /* ─── Tables ─── */
+    .table-wrap {
+      overflow-x: auto;
+      margin-bottom: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    thead {
+      background: var(--surface-2);
+    }
+    th {
+      text-align: left;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    td:first-child {
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    /* ─── Code Blocks ─── */
+    .code-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      margin-bottom: 20px;
+      color: var(--text-muted);
+    }
+    .code-block .keyword { color: var(--accent-light); }
+    .code-block .success { color: var(--green); }
+    .code-block .fail { color: var(--red); }
+    .code-block .highlight { color: var(--yellow); }
+    .code-block .comment { color: var(--text-dim); }
+
+    /* ─── Callout / Alert Boxes ─── */
+    .callout {
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .callout-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .callout p { margin: 0; font-size: 0.92rem; }
+    .callout-info {
+      background: var(--blue-dim);
+      border: 1px solid rgba(96, 165, 250, 0.2);
+    }
+    .callout-info .callout-icon { color: var(--blue); }
+    .callout-important {
+      background: var(--accent-glow);
+      border: 1px solid rgba(124, 106, 239, 0.25);
+    }
+    .callout-important .callout-icon { color: var(--accent-light); }
+    .callout-warning {
+      background: var(--orange-dim);
+      border: 1px solid rgba(251, 146, 60, 0.2);
+    }
+    .callout-warning .callout-icon { color: var(--orange); }
+    .callout-success {
+      background: var(--green-dim);
+      border: 1px solid rgba(52, 211, 153, 0.2);
+    }
+    .callout-success .callout-icon { color: var(--green); }
+
+    /* ─── Flow Diagram ─── */
+    .flow-container {
+      position: relative;
+      padding-left: 32px;
+    }
+    .flow-container::before {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent), var(--green), var(--accent));
+      border-radius: 2px;
+    }
+    .flow-step {
+      position: relative;
+      margin-bottom: 20px;
+      padding: 18px 22px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .flow-step::before {
+      content: '';
+      position: absolute;
+      left: -25px;
+      top: 22px;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--bg);
+    }
+    .flow-step.success::before { background: var(--green); }
+    .flow-step.fail::before { background: var(--red); }
+    .flow-step .step-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent-light);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .flow-step h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .flow-step p {
+      font-size: 0.88rem;
+      margin: 0;
+    }
+
+    /* ─── Badge Pill ─── */
+    .pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .pill-purple { background: var(--accent-glow); color: var(--accent-light); }
+    .pill-green { background: var(--green-dim); color: var(--green); }
+    .pill-red { background: var(--red-dim); color: var(--red); }
+    .pill-blue { background: var(--blue-dim); color: var(--blue); }
+    .pill-orange { background: var(--orange-dim); color: var(--orange); }
+
+    /* ─── Analogy Box ─── */
+    .analogy {
+      background: var(--surface-2);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 12px 12px 0;
+      padding: 16px 20px;
+      margin: 16px 0 20px;
+    }
+    .analogy-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--accent-light);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .analogy p { margin: 0; font-size: 0.92rem; }
+
+    /* ─── Divider ─── */
+    .divider {
+      border: none;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-accent), transparent);
+      margin: 48px 0;
+    }
+
+    /* ─── Summary Grid ─── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .summary-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .summary-item .s-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .summary-item h4 {
+      font-size: 0.92rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .summary-item p {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--text-dim);
+    }
+
+    /* ─── Footer ─── */
+    .footer {
+      text-align: center;
+      padding: 40px 0 20px;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+    .footer strong { color: var(--text-muted); }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 1.8rem; }
+      .toc ol { columns: 1; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .hero .meta { flex-direction: column; align-items: center; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">
+  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/></svg>
+  Save as PDF
+</button>
+
+<div class="page-wrapper">
+
+  <!-- ═══════════ HERO ═══════════ -->
+  <header class="hero">
+    <div class="hero-icon">👻</div>
+    <h1>Ghost Stack Proxy</h1>
+    <p class="subtitle">A complete guide to how the bypass system works inside Ghost Browser — written for non-technical readers.</p>
+    <div class="meta">
+      <span>📄 Project: Ghost Browser (Electron)</span>
+      <span>📅 Generated: July 2, 2026</span>
+      <span>🔧 Version 1.0.0</span>
+    </div>
+  </header>
+
+  <!-- ═══════════ TOC ═══════════ -->
+  <nav class="toc">
+    <h3>Table of Contents</h3>
+    <ol>
+      <li><a href="#problem">What Problem Does Ghost Stack Solve?</a></li>
+      <li><a href="#overview">The 7 Parts of Ghost Stack</a></li>
+      <li><a href="#scout">The Scout — Network Probe</a></li>
+      <li><a href="#doctor">The Doctor — Block Detector</a></li>
+      <li><a href="#phonebook">The Secret Phone Book — DNS over HTTPS</a></li>
+      <li><a href="#address">The Address Finder — Live IP Discovery</a></li>
+      <li><a href="#ipraw">Engine #1: IPRaw — The Disguised Letter</a></li>
+      <li><a href="#splitcast">Engine #2: SplitCast — The Shredded Envelope</a></li>
+      <li><a href="#proxy">The Invisible Mailroom — Local Proxy</a></li>
+      <li><a href="#privacy">The Invisibility Cloak — Privacy Shield</a></li>
+      <li><a href="#flow">Complete Journey: Blocked Site → Loaded</a></li>
+      <li><a href="#summary">Summary & Key Advantages</a></li>
+    </ol>
+  </nav>
+
+  <!-- ═══════════ SECTION 1: PROBLEM ═══════════ -->
+  <section id="problem">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #ef4444, #f97316);">🎯</span>
+      What Problem Does Ghost Stack Solve?
+    </h2>
+    <p>
+      Imagine you're at a school or office, and someone has hired a <strong>security guard</strong> (the firewall) to stand at the front door. This guard has a list of websites you're <strong>not allowed to visit</strong> — YouTube, Twitter, Reddit, etc.
+    </p>
+    <p>
+      When you try to visit one of those websites, the guard sees the name on your "letter" (your internet request) and says <strong>"Nope! Blocked!"</strong>
+    </p>
+    <div class="analogy">
+      <div class="analogy-label">💡 In Simple Words</div>
+      <p><strong>Ghost Stack is like a clever postal system</strong> that lets your letters reach their destination without the security guard ever seeing which website you're writing to. It doesn't use VPNs, doesn't use Tor, and doesn't send your traffic through another country. It simply <strong>changes how your computer talks</strong> so the guard can't understand what's being said.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 2: OVERVIEW ═══════════ -->
+  <section id="overview">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, var(--accent), #9b5de5);">🏗️</span>
+      The 7 Parts of Ghost Stack
+    </h2>
+    <p>Think of Ghost Stack as a team of 7 specialists, each with a specific job. They work together automatically — you never have to click anything.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Analogy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pill pill-purple">01</span></td>
+            <td>Network Probe</td>
+            <td>Scans the network to identify the firewall type</td>
+            <td>The Scout</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-red">02</span></td>
+            <td>Block Detector</td>
+            <td>Diagnoses exactly how a site is blocked</td>
+            <td>The Doctor</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-blue">03</span></td>
+            <td>DoH Client</td>
+            <td>Encrypted DNS lookups that can't be intercepted</td>
+            <td>The Secret Phone Book</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-green">04</span></td>
+            <td>Live IP Discovery</td>
+            <td>Finds the real IP address of blocked websites</td>
+            <td>The Address Finder</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-orange">05</span></td>
+            <td>IPRaw Engine</td>
+            <td>Hides the website name during connection</td>
+            <td>The Disguised Letter</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-purple">06</span></td>
+            <td>SplitCast Engine</td>
+            <td>Shreds the "hello" message into unreadable fragments</td>
+            <td>The Shredded Envelope</td>
+          </tr>
+          <tr>
+            <td><span class="pill pill-blue">07</span></td>
+            <td>Privacy Shield</td>
+            <td>Hides your browser fingerprint from websites</td>
+            <td>The Invisibility Cloak</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 3: NETWORK PROBE ═══════════ -->
+  <section id="scout">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #6366f1, #818cf8);">🕵️</span>
+      Part 1: The Scout — Network Probe
+    </h2>
+    <div class="section-file">📁 src/ghoststack/core/NetworkProbe.ts</div>
+
+    <p>Before Ghost Stack does anything, it sends out a scout to understand the "battlefield." This happens <strong>automatically when the browser starts</strong>.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Question It Asks</th><th>How It Checks</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>🏷️ What brand of firewall?</td>
+            <td>Tries to visit YouTube and reads the "Blocked!" page to identify Sophos, Fortinet, Zscaler, etc.</td>
+          </tr>
+          <tr>
+            <td>🔓 Is someone reading our mail?</td>
+            <td>Checks if the network is opening and re-sealing encrypted letters (SSL/MITM interception)</td>
+          </tr>
+          <tr>
+            <td>📞 Is the phone book lying?</td>
+            <td>Compares the local DNS answer with a trusted encrypted DNS to see if they match</td>
+          </tr>
+          <tr>
+            <td>🚀 Is the fast lane open?</td>
+            <td>Tests if the network allows QUIC/UDP traffic (a newer, faster protocol)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The probe detects <strong>14 different firewall brands</strong> including Sophos, Fortinet, Zscaler, Forcepoint, Barracuda, Palo Alto, Blue Coat, Cisco Umbrella, Lightspeed, and more.</p>
+
+    <div class="analogy">
+      <div class="analogy-label">🌍 Real-World Analogy</div>
+      <p>It's like sending a friend into a building first to check how many guards there are, what they're watching for, and which doors are unlocked — <strong>before you try to enter</strong>.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 4: BLOCK DETECTOR ═══════════ -->
+  <section id="doctor">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #ef4444, #f87171);">🩺</span>
+      Part 2: The Doctor — Block Detector
+    </h2>
+    <div class="section-file">📁 src/ghoststack/core/BlockDetector.ts</div>
+
+    <p>When a website fails to load, the Doctor examines what went wrong. It doesn't just say "it's blocked" — it identifies the <strong>exact type of block</strong> so the right treatment can be applied.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Block Type</th><th>What's Happening</th><th>Severity</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>🧱 Firewall Category Block</td>
+            <td>The guard read your letter and said "This website category is not allowed"</td>
+            <td><span class="pill pill-orange">Medium</span></td>
+          </tr>
+          <tr>
+            <td>📞 DNS Hijacked</td>
+            <td>You asked for YouTube's address, but the phone book gave you a fake address on purpose</td>
+            <td><span class="pill pill-orange">Medium</span></td>
+          </tr>
+          <tr>
+            <td>🚫 DNS Blocked</td>
+            <td>The phone book pretends YouTube doesn't exist at all (NXDOMAIN)</td>
+            <td><span class="pill pill-orange">Medium</span></td>
+          </tr>
+          <tr>
+            <td>✂️ TCP Blocked</td>
+            <td>The guard is cutting the phone wire mid-conversation (connection reset)</td>
+            <td><span class="pill pill-red">High</span></td>
+          </tr>
+          <tr>
+            <td>🔓 SSL Intercepted</td>
+            <td>Someone is secretly opening your sealed letters, reading them, and re-sealing them</td>
+            <td><span class="pill pill-red">High</span></td>
+          </tr>
+          <tr>
+            <td>🏨 Captive Portal</td>
+            <td>You're being forcefully redirected to a "sign in" page</td>
+            <td><span class="pill pill-purple">Low</span></td>
+          </tr>
+          <tr>
+            <td>💀 Silent Drop</td>
+            <td>Your request disappears into thin air — no response, no error, nothing</td>
+            <td><span class="pill pill-red">High</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="analogy">
+      <div class="analogy-label">🌍 Real-World Analogy</div>
+      <p>A doctor who doesn't just say "you're sick" — they run <strong>7 different tests</strong> to figure out exactly what's wrong, so they can prescribe the right treatment.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 5: DOH ═══════════ -->
+  <section id="phonebook">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #0ea5e9, #38bdf8);">📖</span>
+      Part 3: The Secret Phone Book — DNS over HTTPS
+    </h2>
+    <div class="section-file">📁 src/ghoststack/dns/DoHClient.ts</div>
+
+    <p>Every time you visit a website, your computer first looks up the website's "real address" (IP address) in a phone book (DNS). The problem? <strong>The network controls that phone book</strong> and can lie to you or refuse to give you the address.</p>
+
+    <p>Ghost Stack has its own <strong>secret, encrypted phone books</strong> that the network cannot read or tamper with:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Provider</th><th>Address</th><th>Type</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>📗 Cloudflare</td><td>1.1.1.1</td><td><span class="pill pill-green">Primary</span></td></tr>
+          <tr><td>📘 Google</td><td>8.8.8.8</td><td><span class="pill pill-blue">Secondary</span></td></tr>
+          <tr><td>📙 NextDNS</td><td>dns.nextdns.io</td><td><span class="pill pill-blue">Secondary</span></td></tr>
+          <tr><td>📕 Quad9</td><td>dns.quad9.net</td><td><span class="pill pill-blue">Secondary</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-important">
+      <div class="callout-icon">⚡</div>
+      <p><strong>The Clever Part:</strong> Ghost Stack asks <strong>all 4 phone books at the same time</strong> and picks the answer that at least 2 agree on. This way, even if one phone book is compromised, the majority still gives the correct answer. This is called <strong>"consensus resolution."</strong></p>
+    </div>
+
+    <div class="analogy">
+      <div class="analogy-label">🌍 Real-World Analogy</div>
+      <p>Instead of trusting one person for directions, you ask 4 different strangers. If 3 of them say "turn left," you turn left — even if one person tried to send you the wrong way.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 6: IP DISCOVERY ═══════════ -->
+  <section id="address">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #10b981, #34d399);">🗺️</span>
+      Part 4: The Address Finder — Live IP Discovery
+    </h2>
+    <div class="section-file">📁 src/ghoststack/core/LiveIPDiscovery.ts</div>
+
+    <p>Once the Doctor diagnoses that a website is blocked, the Address Finder's job is to discover the website's <strong>real home address</strong>. It uses <strong>4 methods, tried one after another</strong>:</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background: var(--green-dim); color: var(--green);">1</div>
+        <h4>Method 1: Ask the Secret Phone Books (DoH Consensus)</h4>
+      </div>
+      <p>Ask all 4 encrypted phone books and find the address they agree on. This is the <strong>fastest method</strong> and works in most cases.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background: var(--blue-dim); color: var(--blue);">2</div>
+        <h4>Method 2: CDN Neighborhood Scan</h4>
+      </div>
+      <p>If the website lives in a well-known "neighborhood" (like Cloudflare or Google's servers), Ghost Stack generates <strong>random addresses in that neighborhood</strong> and knocks on doors to see which one has a valid key (certificate) for the website.</p>
+      <div class="analogy">
+        <div class="analogy-label">🌍 Analogy</div>
+        <p>Like checking every house on a street to find which one belongs to your friend.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background: var(--orange-dim); color: var(--orange);">3</div>
+        <h4>Method 3: Certificate Transparency Logs</h4>
+      </div>
+      <p>Public records exist of every security certificate ever issued to a website. Ghost Stack queries these <strong>public records</strong> (via crt.sh) to find the website's associated domains and then resolves them.</p>
+      <div class="analogy">
+        <div class="analogy-label">🌍 Analogy</div>
+        <p>Like checking public property records to find someone's address.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background: var(--red-dim); color: var(--red);">4</div>
+        <h4>Method 4: TemporalDNS (Last Resort)</h4>
+      </div>
+      <p>The slowest but most creative method — uses <strong>timing-based encoding</strong> over DNS queries to extract the real IP even when all other methods are blocked.</p>
+      <div class="analogy">
+        <div class="analogy-label">🌍 Analogy</div>
+        <p>Like communicating in Morse code when all other communication is blocked.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 7: IPRAW ═══════════ -->
+  <section id="ipraw">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">🎭</span>
+      Part 5: Engine #1 — IPRaw (The Disguised Letter)
+    </h2>
+    <div class="section-file">📁 src/ghoststack/ipraw/IPRawEngine.ts</div>
+
+    <p>Now that we know the website's real address, IPRaw tries to connect to it <strong>while hiding the website name</strong> from the guard. It tries 3 tricks in order:</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background: var(--green-dim);">🚇</div>
+        <h4>Trick A: QUIC — The Fast Underground Tunnel</h4>
+      </div>
+      <p>Uses a newer, faster protocol (like a different type of road) that many firewalls <strong>don't know how to inspect</strong>. Think of it as taking an underground tunnel instead of the main road.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background: var(--accent-glow);">✉️</div>
+        <h4>Trick B: ECH — Encrypted Client Hello</h4>
+      </div>
+      <p>Normally when you connect to a website, you have to show the website name on the <strong>outside</strong> of your "envelope" (in plaintext). ECH <strong>encrypts the website name</strong> so the guard only sees something like "cloudflare.com" on the outside — which is allowed — while the real destination is hidden inside.</p>
+      <div class="analogy">
+        <div class="analogy-label">🌍 Analogy</div>
+        <p>Like writing "To: Google" on the outside of an envelope, but the real letter inside says "To: YouTube."</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background: var(--blue-dim);">🔐</div>
+        <h4>Trick C: Direct TLS 1.3 Connection</h4>
+      </div>
+      <p>A straightforward encrypted connection directly to the website's IP address, using the <strong>strongest available encryption</strong> (TLS 1.3). Like calling someone's phone directly instead of going through the switchboard.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 8: SPLITCAST ═══════════ -->
+  <section id="splitcast">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #ec4899, #f472b6);">✂️</span>
+      Part 6: Engine #2 — SplitCast (The Shredded Envelope)
+    </h2>
+    <div class="section-file">📁 src/ghoststack/splitcast/SplitCastEngine.ts</div>
+
+    <p>If IPRaw's tricks don't work, SplitCast takes a completely different approach. Here's the key insight:</p>
+
+    <div class="callout callout-important">
+      <div class="callout-icon">💡</div>
+      <p><strong>The firewall guard reads the website name from the very first "hello" message</strong> your computer sends (called the TLS Client Hello). If the guard can't read that message, it can't block you!</p>
+    </div>
+
+    <p>SplitCast <strong>tears up that "hello" message into tiny pieces</strong> and sends them one at a time, with small random pauses in between (10–60 milliseconds). Each piece is too small for the guard to understand, and the guard can't reassemble them fast enough.</p>
+
+    <h3>How It Looks</h3>
+
+    <div class="code-block">
+<span class="comment">// ❌ Normal connection (guard can read the website name)</span>
+Your Computer ──[ <span class="fail">"Hi, I want to visit YouTube.com"</span> ]──→ <span class="fail">Guard sees "YouTube" → BLOCKED!</span>
+
+<span class="comment">// ✅ SplitCast connection (guard sees only meaningless fragments)</span>
+Your Computer ──[ <span class="highlight">"Hi,"</span> ]──→ Guard: <span class="comment">???</span>
+Your Computer ──[ <span class="highlight">" I w"</span> ]──→ Guard: <span class="comment">still confused...</span>
+Your Computer ──[ <span class="highlight">"ant "</span> ]──→ Guard: <span class="comment">can't read it...</span>
+Your Computer ──[ <span class="highlight">"YouT"</span> ]──→ Guard: <span class="comment">gives up, lets it pass ✓</span>
+Your Computer ──[ <span class="highlight">"ube."</span> ]──→ Server: <span class="success">collects all pieces ✅</span>
+    </div>
+
+    <p><strong>Why does the real server still work?</strong> Because the server is designed to wait and collect all the pieces before reading the message. The firewall guard is not — it needs to make a split-second decision.</p>
+
+    <p>SplitCast can split the message into <strong>3, 5, or 7 fragments</strong>. If one setting doesn't work, it automatically tries another.</p>
+
+    <div class="analogy">
+      <div class="analogy-label">🌍 Real-World Analogy</div>
+      <p>Imagine a security guard checks every letter for banned words. If you <strong>tear your letter into tiny strips</strong> and mail them separately over 7 envelopes, the guard can't reassemble them — but your friend at the destination can tape them back together.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 9: LOCAL PROXY ═══════════ -->
+  <section id="proxy">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #8b5cf6, #a78bfa);">📬</span>
+      Part 7: The Invisible Mailroom — Local Proxy
+    </h2>
+    <div class="section-file">📁 src/ghoststack/core/GhostStackProxy.ts</div>
+
+    <p>This is the <strong>central piece</strong> that ties everything together. Think of it as a tiny, invisible mailroom sitting inside your own computer (at address 127.0.0.1 — which means "myself").</p>
+
+    <h3>How the Mailroom Works</h3>
+
+    <div class="flow-container">
+      <div class="flow-step">
+        <div class="step-label">Step 1</div>
+        <h4>All mail goes through the mailroom</h4>
+        <p>Ghost Browser tells the built-in Chromium engine: "Send ALL your traffic through our internal mailroom." Every single web request passes through it.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-label">Step 2</div>
+        <h4>Look up the real address</h4>
+        <p>The mailroom checks its own encrypted phone books (DoH) for the website's real IP address — ignoring the network's potentially fake phone book.</p>
+      </div>
+      <div class="flow-step">
+        <div class="step-label">Step 3</div>
+        <h4>Connect directly to the real IP</h4>
+        <p>Opens a TCP connection straight to the website's real server, bypassing any DNS-level blocks.</p>
+      </div>
+      <div class="flow-step success">
+        <div class="step-label">Step 4 — The Magic</div>
+        <h4>1-byte TLS split on EVERY connection</h4>
+        <p>Sends <strong>just the first byte</strong> of the "hello" message, waits 50 milliseconds, then sends the rest. This tiny split prevents the firewall from ever reading the website name.</p>
+      </div>
+      <div class="flow-step success">
+        <div class="step-label">Step 5</div>
+        <h4>Transparent data flow</h4>
+        <p>After the initial handshake, data flows normally between the browser and the website. The user sees nothing unusual.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-warning">
+      <div class="callout-icon">⚡</div>
+      <p><strong>Important:</strong> The 1-byte TLS split happens on <strong>EVERY connection</strong>, not just blocked ones. This means the firewall never gets a chance to see which websites you're visiting — even for sites that aren't on the block list.</p>
+    </div>
+
+    <h3>🚪 Alternative Port Probing</h3>
+    <p>Some websites (those on Cloudflare) support HTTPS on <strong>unusual door numbers</strong> (ports) that most firewalls don't monitor:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Standard Port</th><th>Alternative Ports</th><th>Why They Work</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>443 (watched by firewall)</td>
+            <td>8443, 2053, 2083, 2087, 2096</td>
+            <td>Most firewalls only inspect port 443 — these alternative ports go unnoticed</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Ghost Stack also checks if an alternative port has a <strong>MITM inspector</strong> (like Sophos) — if it detects one, it skips that port and tries the next.</p>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 10: PRIVACY ═══════════ -->
+  <section id="privacy">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #06b6d4, #22d3ee);">🛡️</span>
+      Part 8: The Invisibility Cloak — Privacy Shield
+    </h2>
+    <div class="section-file">📁 src/ghoststack/privacy/</div>
+
+    <p>Even after getting past the firewall, websites can still <strong>identify you</strong> using your browser's unique "fingerprint." Ghost Stack adds an invisibility cloak that makes you look like a different, generic person.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Protection</th><th>What It Hides</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>🎨 Canvas Spoofing</td>
+            <td>Websites make your browser draw invisible pictures to identify you — noise is added</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>🌐 WebGL Spoofing</td>
+            <td>3D graphics hardware details that can fingerprint your GPU</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>🔇 Audio Spoofing</td>
+            <td>Audio processing creates a unique signature per device</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>🌐 WebRTC Shield</td>
+            <td>Technology that can leak your real IP even through proxies — blocked</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>🍪 Cookie Isolation</td>
+            <td>Prevents tracking across different websites using cookies</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>👤 User Agent Rotation</td>
+            <td>Changes the browser's "ID card" so you look like a different browser</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>🔋 Battery Spoofing</td>
+            <td>Yes, websites can read your battery level to track you — faked</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>🖥️ Hardware Spoofing</td>
+            <td>Real computer hardware details are hidden</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>🔤 Font Spoofing</td>
+            <td>Installed fonts create a unique fingerprint — spoofed</td>
+            <td><span class="pill pill-green">Active</span></td>
+          </tr>
+          <tr>
+            <td>🕐 Timezone Spoofing</td>
+            <td>Your timezone reveals your location — can be overridden</td>
+            <td><span class="pill pill-blue">Optional</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 11: FULL FLOW ═══════════ -->
+  <section id="flow">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #10b981, #6366f1);">🔄</span>
+      The Complete Journey: What Happens When You Visit a Blocked Site
+    </h2>
+
+    <p>Here's the <strong>full story</strong> of what happens when you type <strong>youtube.com</strong> into Ghost Browser on a network that blocks it:</p>
+
+    <div class="flow-container">
+      <div class="flow-step">
+        <div class="step-label">Step 1 — You Type a URL</div>
+        <h4>👤 You type youtube.com in the address bar</h4>
+        <p>The browser tries to load the page normally through the local proxy.</p>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-label">Step 2 — Proxy Intercepts</div>
+        <h4>📬 The Local Proxy handles the request</h4>
+        <p>The proxy looks up YouTube's real IP via DoH (encrypted DNS), connects directly, and applies the 1-byte TLS split. If this works — the page loads and you're done!</p>
+      </div>
+
+      <div class="flow-step fail">
+        <div class="step-label">Step 3 — If It Fails</div>
+        <h4>❌ The page fails to load (connection reset, timeout, etc.)</h4>
+        <p>The firewall detected and blocked the connection despite the proxy's initial efforts.</p>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-label">Step 4 — Diagnosis</div>
+        <h4>🩺 Block Detector diagnoses the block type</h4>
+        <p>Runs all 7 detection signatures: "This is a DNS_HIJACKED block on a Sophos firewall."</p>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-label">Step 5 — Find Real Address</div>
+        <h4>🗺️ Live IP Discovery finds YouTube's real IP</h4>
+        <p>Queries 4 encrypted DNS providers. 3 out of 4 agree: YouTube is at 142.250.x.x. Address confirmed.</p>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-label">Step 6 — Try IPRaw Engine</div>
+        <h4>🎭 IPRaw tries QUIC → ECH → Direct TLS</h4>
+        <p>Attempts to connect while hiding the website name using advanced encryption techniques.</p>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-label">Step 7 — Try SplitCast Engine</div>
+        <h4>✂️ SplitCast fragments the TLS handshake</h4>
+        <p>If IPRaw fails, SplitCast shreds the "hello" message into 3/5/7 fragments that the firewall can't reassemble.</p>
+      </div>
+
+      <div class="flow-step success">
+        <div class="step-label">Step 8 — Success!</div>
+        <h4>✅ The page loads! Bypass result is cached.</h4>
+        <p>Ghost Stack remembers which method worked, so next time you visit this site it's <strong>instant</strong>.</p>
+      </div>
+
+      <div class="flow-step success">
+        <div class="step-label">Step 9 — Privacy Shield</div>
+        <h4>🛡️ Privacy Shield activates automatically</h4>
+        <p>Fingerprint spoofed. Cookies isolated. WebRTC leaks blocked. You're invisible.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════ SECTION 12: SUMMARY ═══════════ -->
+  <section id="summary">
+    <h2>
+      <span class="icon" style="background: linear-gradient(135deg, #f59e0b, #10b981);">📊</span>
+      Summary & Key Advantages
+    </h2>
+
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="s-icon">⚡</div>
+        <div>
+          <h4>No VPN Needed</h4>
+          <p>Works without any external servers — everything runs locally on your computer.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="s-icon">🔒</div>
+        <div>
+          <h4>No Tor Needed</h4>
+          <p>No slow onion routing — connections go directly to the real server at full speed.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="s-icon">🧩</div>
+        <div>
+          <h4>No External Programs</h4>
+          <p>Pure JavaScript inside the browser — nothing extra to install or configure.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="s-icon">🔄</div>
+        <div>
+          <h4>Fully Automatic</h4>
+          <p>Detects blocks and fixes them on its own — no user intervention required.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="s-icon">📱</div>
+        <div>
+          <h4>Multi-Method Cascade</h4>
+          <p>If one technique fails, it automatically tries the next — up to 6+ different methods.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="s-icon">🕶️</div>
+        <div>
+          <h4>Privacy Built-In</h4>
+          <p>10-point fingerprint protection, cookie isolation, and WebRTC leak prevention.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="s-icon">🗂️</div>
+        <div>
+          <h4>Smart Caching</h4>
+          <p>Remembers successful bypasses so repeat visits to the same site are instant.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="s-icon">🌐</div>
+        <div>
+          <h4>14 Firewall Brands</h4>
+          <p>Detects Sophos, Fortinet, Zscaler, Palo Alto, Lightspeed, and 9 more.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-success">
+      <div class="callout-icon">✨</div>
+      <p>Ghost Stack works by using the <strong>same internet connection</strong> you already have. It doesn't create a tunnel to another country or route traffic through another server. It simply changes <strong>how your computer talks to the website</strong> so the firewall can't understand what website you're connecting to.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════ FOOTER ═══════════ -->
+  <footer class="footer">
+    <p><strong>Ghost Browser</strong> — Ghost Stack Proxy Architecture Report</p>
+    <p>Confidential · For internal use only · Generated July 2, 2026</p>
+  </footer>
+
+</div>
+
+</body>
+</html>

@@ -4,7 +4,7 @@ import NavButton from './NavButton'
 import KebabMenu from './KebabMenu'
 
 export default function Toolbar() {
-  const { state, goBack, goForward, reload } = useBrowser()
+  const { state, dispatch, goBack, goForward, reload } = useBrowser()
   const activeTab = state.tabs.find((t) => t.id === state.activeTabId)
 
   return (
@@ -89,6 +89,36 @@ export default function Toolbar() {
 
       {/* Right actions */}
       <div className="flex items-center gap-2">
+        {/* Dark Room toggle */}
+        <NavButton
+          onClick={() => dispatch({ type: 'TOGGLE_DARK_ROOM' })}
+          title="Dark Room — Anonymous E2E chat via Tor"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 14 14"
+            fill="none"
+            style={{
+              color: state.darkRoomOpen ? 'var(--color-accent)' : undefined
+            }}
+          >
+            <path
+              d="M7 1.5L12 4.25v5.5L7 12.5 2 9.75v-5.5L7 1.5Z"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeLinejoin="round"
+            />
+            <circle cx="7" cy="6.5" r="1.5" fill="currentColor" opacity="0.7" />
+            <path
+              d="M4.5 10c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeLinecap="round"
+            />
+          </svg>
+        </NavButton>
+
         {/* Bookmark star */}
         <NavButton onClick={() => {}} title="Bookmark this page">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none">

@@ -195,25 +195,45 @@ class DarkRoomProxy {
           return
         }
 
-        if (state === 'connecting' && buf.length >= 10) {
+        if (state === 'connecting' && buf.length >= 4) {
           if (buf[1] !== 0x00) {
             socket.destroy()
             reject(new Error(`SOCKS5: connect error code ${buf[1]}`))
             return
           }
+
+          // Calculate actual SOCKS5 response length based on ATYP
+          let respLen: number
+          switch (buf[3]) {
+            case 0x01: respLen = 10; break        // IPv4: 4 header + 4 addr + 2 port
+            case 0x04: respLen = 22; break        // IPv6: 4 header + 16 addr + 2 port
+            case 0x03:                            // Domain: 4 header + 1 len + N + 2 port
+              if (buf.length < 5) return          // need at least 5 bytes to read domain length
+              respLen = 7 + buf[4]
+              break
+            default:   respLen = 10; break
+          }
+
+          if (buf.length < respLen) return         // wait for full response
+
           // SOCKS5 response consumed — socket is now a transparent tunnel
           state = 'done'
           socket.setTimeout(0)
 
-          // Any bytes after the 10-byte SOCKS5 response header belong to the
+          // Any bytes after the SOCKS5 response header belong to the
           // application; put them back on the stream.
-          const leftover = buf.subarray(10)
+          const leftover = buf.subarray(respLen)
           buf = Buffer.alloc(0)
 
+          // Pause the socket BEFORE removing listeners to prevent data loss.
+          // The stream is in flowing mode due to the 'data' listener; removing
+          // it without pausing first leaves a gap where incoming bytes are
+          // silently discarded before .pipe() is established by the caller.
+          socket.pause()
           socket.removeAllListeners('data')
 
           if (leftover.length > 0) {
-            // Emit leftover so the next consumer (ws) sees it
+            // Push leftover bytes back so the next consumer (ws) sees them
             socket.unshift(leftover)
           }
 
