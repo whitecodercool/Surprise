@@ -123,13 +123,31 @@ class DarkRoomProxy {
 
       this._connectViaSocks5()
         .then((torSocket) => {
-          client.pipe(torSocket)
+          let first = true
+          client.on('data', (chunk) => {
+            if (first) {
+              first = false
+              let req = chunk.toString('utf8')
+              if (req.startsWith('GET ')) {
+                req = req.replace(/(?<=^|\r\n)Host: [^\r\n]+/i, `Host: ${this.onionAddr}`)
+                req = req.replace(/(?<=^|\r\n)Origin: [^\r\n]+/i, `Origin: http://${this.onionAddr}`)
+                torSocket.write(Buffer.from(req, 'utf8'))
+                return
+              }
+            }
+            torSocket.write(chunk)
+          })
+
           torSocket.pipe(client)
+
           client.on('close', () => torSocket.destroy())
           torSocket.on('close', () => client.destroy())
           torSocket.on('error', () => client.destroy())
         })
-        .catch(() => client.destroy())
+        .catch((err) => {
+          console.error('[DarkRoomProxy] SOCKS5 connection failed:', err)
+          client.destroy()
+        })
     })
 
     return new Promise((resolve, reject) => {
