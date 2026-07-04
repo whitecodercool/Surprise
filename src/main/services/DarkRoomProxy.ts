@@ -174,7 +174,8 @@ class DarkRoomProxy {
     return new Promise((resolve, reject) => {
       const socket = net.connect(socksPort, '127.0.0.1')
       socket.on('error', reject)
-      socket.setTimeout(30_000, () => {
+      // Set a long timeout (60s) for Tor to build circuits to new hidden services
+      socket.setTimeout(60_000, () => {
         socket.destroy()
         reject(new Error('SOCKS5 connection timed out'))
       })
