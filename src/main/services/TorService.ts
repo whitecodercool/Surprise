@@ -117,8 +117,15 @@ class TorService {
 
     this._setStatus('starting')
 
+    const env = { ...process.env }
+    if (process.platform === 'linux') {
+      const torDir = path.dirname(torBin)
+      env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH ? `${torDir}:${env.LD_LIBRARY_PATH}` : torDir
+    }
+
     this.proc = spawn(torBin, ['-f', torrcPath], {
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env
     })
 
     let lastLogs: string[] = []
