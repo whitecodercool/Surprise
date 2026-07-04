@@ -172,10 +172,10 @@ export function createWindow(initialUrl?: string): void {
     }
 
     // Initialize and check for updates
-    const updater = new AppUpdater(view.webContents)
-    setTimeout(() => {
-      updater.checkForUpdates()
-    }, 2000)
+    // const updater = new AppUpdater(view.webContents)
+    // setTimeout(() => {
+    //   updater.checkForUpdates()
+    // }, 2000)
   })
 
   // Load the React UI
