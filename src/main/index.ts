@@ -9,7 +9,7 @@ import { GhostStackOrchestrator } from '../ghoststack/core/GhostStackOrchestrato
 import { initLogger, closeLogger, getLogFilePath } from '../ghoststack/core/Logger'
 import { torService } from './services/TorService'
 import { darkRoomProxy, resolveOnionAddr } from './services/DarkRoomProxy'
-import { AppUpdater } from './autoUpdater'
+// import { AppUpdater } from './autoUpdater'
 
 // ─── GhostStack Chromium Flags ───
 // Encrypt DNS queries
